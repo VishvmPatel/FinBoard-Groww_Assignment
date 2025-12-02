@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { WidgetConfig, WidgetField } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { getNestedValue } from '@/utils/api';
@@ -19,6 +19,8 @@ export default function TableWidget({ widget }: TableWidgetProps) {
   const { data, loading, error, getFieldValue } = useWidgetData(widget);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Extract array data from the first selected field
   const tableData = useMemo(() => {
@@ -103,6 +105,23 @@ export default function TableWidget({ widget }: TableWidgetProps) {
 
     return result;
   }, [tableData, searchQuery, sortConfig, widget.selectedFields]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredAndSortedData.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedData = filteredAndSortedData.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, sortConfig]);
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
 
   const handleSort = (fieldPath: string) => {
     if (sortConfig?.field === fieldPath) {
@@ -231,7 +250,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
             </tr>
           </thead>
           <tbody>
-            {filteredAndSortedData.map((row, index) => (
+            {paginatedData.map((row, index) => (
               <tr
                 key={index}
                 className="border-b border-dark-border hover:bg-dark-bg transition-colors"
@@ -291,9 +310,54 @@ export default function TableWidget({ widget }: TableWidgetProps) {
         </table>
       </div>
 
-      {/* Item count */}
-      <div className="text-sm text-dark-muted text-right">
-        {filteredAndSortedData.length} of {tableData.length} items
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between pt-4 border-t border-dark-border">
+        {/* Page size selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-dark-muted">Show:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1 bg-dark-bg border border-dark-border rounded text-dark-text text-sm focus:outline-none focus:border-primary"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span className="text-sm text-dark-muted">items per page</span>
+        </div>
+
+        {/* Page navigation */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-dark-muted">
+            Showing {startIndex + 1}-{Math.min(endIndex, filteredAndSortedData.length)} of {filteredAndSortedData.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="p-1.5 hover:bg-dark-bg rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Previous page"
+            >
+              <ChevronLeft className="w-4 h-4 text-dark-muted" />
+            </button>
+            <span className="text-sm text-dark-text px-2">
+              Page {currentPage} of {totalPages || 1}
+            </span>
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              className="p-1.5 hover:bg-dark-bg rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Next page"
+            >
+              <ChevronRight className="w-4 h-4 text-dark-muted" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
