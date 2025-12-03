@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Filter, X } from 'lucide-react';
 import { WidgetConfig, WidgetField } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { getNestedValue } from '@/utils/api';
 import { formatFieldValue } from '@/utils/formatting';
+import { FilterType, ColumnFilter, FilterState } from '@/types/filters';
 
 interface TableWidgetProps {
   widget: WidgetConfig;
@@ -22,6 +23,8 @@ export default function TableWidget({ widget }: TableWidgetProps) {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [columnFilters, setColumnFilters] = useState<FilterState>({});
+  const [showFilters, setShowFilters] = useState(false);
 
   // Extract array data from the first selected field
   const tableData = useMemo(() => {
@@ -64,7 +67,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
     }
     
     return [];
-  }, [data, widget.selectedFields, getFieldValue]);
+  }, [data, widget.selectedFields]);
 
   // Detect field types for filter options
   const fieldTypes = useMemo(() => {
@@ -114,6 +117,57 @@ export default function TableWidget({ widget }: TableWidgetProps) {
     
     return values;
   }, [tableData, widget.selectedFields]);
+
+  // Initialize filter for a field
+  const initializeFilter = (fieldPath: string): ColumnFilter => {
+    const filterType = fieldTypes[fieldPath] || 'text';
+    return {
+      fieldPath,
+      filterType,
+    };
+  };
+
+  // Handle filter changes
+  const handleFilterChange = (fieldPath: string, updates: Partial<ColumnFilter>) => {
+    setColumnFilters((prev) => {
+      const currentFilter = prev[fieldPath] || initializeFilter(fieldPath);
+      return {
+        ...prev,
+        [fieldPath]: {
+          ...currentFilter,
+          ...updates,
+        },
+      };
+    });
+  };
+
+  // Clear a specific filter
+  const clearFilter = (fieldPath: string) => {
+    setColumnFilters((prev) => {
+      const newFilters = { ...prev };
+      delete newFilters[fieldPath];
+      return newFilters;
+    });
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setColumnFilters({});
+  };
+
+  // Check if there are active filters
+  const hasActiveFilters = useMemo(() => {
+    return Object.values(columnFilters).some((filter) => {
+      return (
+        filter.value ||
+        filter.min !== undefined ||
+        filter.max !== undefined ||
+        filter.dateFrom ||
+        filter.dateTo ||
+        (filter.selectedOptions && filter.selectedOptions.length > 0)
+      );
+    });
+  }, [columnFilters]);
 
   const filteredAndSortedData = useMemo(() => {
     let result = [...tableData];
@@ -177,13 +231,38 @@ export default function TableWidget({ widget }: TableWidgetProps) {
 
     // Apply search
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter((row) => {
-        return widget.selectedFields.some((field) => {
-          const value = getNestedValue(row, field.path);
-          return String(value).toLowerCase().includes(query);
+      const query = searchQuery.toLowerCase().trim();
+      if (query) {
+        result = result.filter((row) => {
+          return widget.selectedFields.some((field) => {
+            // Try multiple path variations to handle different data structures
+            let value = getNestedValue(row, field.path);
+            
+            // If value is null/undefined, try alternative paths
+            if (value === null || value === undefined) {
+              // Try just the field name (last part of path)
+              const pathParts = field.path.split('.');
+              const lastPart = pathParts[pathParts.length - 1];
+              // Remove array notation if present
+              const cleanFieldName = lastPart.replace(/\[.*?\]/g, '');
+              
+              // Try direct access on the row
+              if (row && typeof row === 'object' && cleanFieldName in row) {
+                value = row[cleanFieldName];
+              }
+            }
+            
+            // Handle null/undefined values
+            if (value === null || value === undefined) {
+              return false;
+            }
+            
+            // Convert to string and search (case-insensitive)
+            const searchableValue = String(value).toLowerCase();
+            return searchableValue.includes(query);
+          });
         });
-      });
+      }
     }
 
     // Apply sorting
@@ -222,7 +301,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
   // Reset to page 1 when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, sortConfig]);
+  }, [searchQuery, sortConfig, columnFilters]);
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -320,9 +399,14 @@ export default function TableWidget({ widget }: TableWidgetProps) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search table..."
+            placeholder={`Search ${tableData.length} records...`}
             className="w-full pl-10 pr-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
           />
+          {searchQuery && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-dark-muted">
+              {filteredAndSortedData.length} result{filteredAndSortedData.length !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
@@ -499,39 +583,57 @@ export default function TableWidget({ widget }: TableWidgetProps) {
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-dark-border">
-              {widget.selectedFields.map((field) => {
-                const displayName = field.displayName || field.path.split('.').pop() || field.path;
-                const isSorted = sortConfig?.field === field.path;
-                
-                return (
-                  <th
-                    key={field.path}
-                    className="text-left p-3 text-sm font-medium text-dark-muted cursor-pointer hover:text-dark-text transition-colors"
-                    onClick={() => handleSort(field.path)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>{displayName}</span>
-                      {isSorted && (
-                        <span>
-                          {sortConfig.direction === 'asc' ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedData.map((row, index) => (
+      {filteredAndSortedData.length === 0 && (searchQuery || hasActiveFilters) ? (
+        <div className="text-center py-8 border border-dark-border rounded">
+          <p className="text-dark-muted text-sm mb-2">
+            No results found
+            {searchQuery && ` for "${searchQuery}"`}
+          </p>
+          <p className="text-dark-muted text-xs">
+            {searchQuery && hasActiveFilters
+              ? 'Try adjusting your search query or filters'
+              : searchQuery
+              ? 'Try a different search term'
+              : 'Try adjusting your filters'}
+          </p>
+          <p className="text-dark-muted text-xs mt-2">
+            Total records in table: {tableData.length}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-dark-border">
+                {widget.selectedFields.map((field) => {
+                  const displayName = field.displayName || field.path.split('.').pop() || field.path;
+                  const isSorted = sortConfig?.field === field.path;
+                  
+                  return (
+                    <th
+                      key={field.path}
+                      className="text-left p-3 text-sm font-medium text-dark-muted cursor-pointer hover:text-dark-text transition-colors"
+                      onClick={() => handleSort(field.path)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{displayName}</span>
+                        {isSorted && (
+                          <span>
+                            {sortConfig.direction === 'asc' ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedData.map((row, index) => (
               <tr
                 key={index}
                 className="border-b border-dark-border hover:bg-dark-bg transition-colors"
@@ -591,10 +693,11 @@ export default function TableWidget({ widget }: TableWidgetProps) {
                   );
                 })}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Pagination Controls */}
       <div className="flex items-center justify-between pt-4 border-t border-dark-border">

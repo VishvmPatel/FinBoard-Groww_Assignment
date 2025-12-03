@@ -22,3 +22,4 @@ export interface FilterState {
   [fieldPath: string]: ColumnFilter;
 }
 
+
