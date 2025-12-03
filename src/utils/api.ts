@@ -210,8 +210,37 @@ export async function fetchApiData(
     }
     
     // Check for API-specific error responses
-    if (data.error || data['Error Message']) {
-      throw new Error(data.error || data['Error Message'] || 'API returned an error');
+    // Alpha Vantage returns 200 OK but includes "Error Message" or "Note" in the response
+    if (data.error || data['Error Message'] || data['Note']) {
+      const errorMsg = data.error || data['Error Message'] || data['Note'] || 'API returned an error';
+      
+      // Provide specific help for Alpha Vantage errors
+      const isAlphaVantage = url.includes('alphavantage.co');
+      if (isAlphaVantage) {
+        let helpfulMessage = `Alpha Vantage API Error: ${errorMsg}`;
+        
+        if (errorMsg.includes('Invalid API call')) {
+          helpfulMessage += `\n\nCommon causes:\n`;
+          helpfulMessage += `1. Rate limit exceeded (free tier: 5 calls/minute, 500 calls/day)\n`;
+          helpfulMessage += `2. Invalid API key or API key not activated\n`;
+          helpfulMessage += `3. Missing required parameters (e.g., symbol, interval, function)\n`;
+          helpfulMessage += `4. Invalid parameter values\n\n`;
+          helpfulMessage += `Solutions:\n`;
+          helpfulMessage += `- Wait 1 minute if you hit rate limit\n`;
+          helpfulMessage += `- Verify your API key at https://www.alphavantage.co/support/#api-key\n`;
+          helpfulMessage += `- Check the API documentation: https://www.alphavantage.co/documentation/\n`;
+          helpfulMessage += `- Ensure all required parameters are included in your URL`;
+        } else if (errorMsg.includes('Thank you for using Alpha Vantage')) {
+          helpfulMessage += `\n\nThis usually means:\n`;
+          helpfulMessage += `- You've exceeded the free tier rate limit (5 calls/minute)\n`;
+          helpfulMessage += `- Wait 1 minute before trying again\n`;
+          helpfulMessage += `- Consider upgrading to a paid plan for higher limits`;
+        }
+        
+        throw new Error(helpfulMessage);
+      }
+      
+      throw new Error(errorMsg);
     }
     
     return {

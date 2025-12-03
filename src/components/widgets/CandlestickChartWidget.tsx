@@ -61,7 +61,52 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
       };
       
       const foundArray = findArray(data);
-      if (foundArray) arrayData = foundArray;
+      if (foundArray) {
+        arrayData = foundArray;
+      } else {
+        // Handle Alpha Vantage format: object with date keys containing OHLC data
+        // Look for objects that look like time series (keys are dates, values are objects with OHLC)
+        const findTimeSeriesObject = (obj: any, depth = 0): any[] | null => {
+          if (depth > 3) return null; // Limit recursion depth
+          if (typeof obj !== 'object' || obj === null) return null;
+          
+          // Check if this looks like a time series object (Alpha Vantage format)
+          // Keys should be date-like strings, values should be objects
+          const entries = Object.entries(obj);
+          if (entries.length > 0) {
+            const firstEntry = entries[0];
+            const key = String(firstEntry[0]);
+            const value = firstEntry[1];
+            
+            // Check if key looks like a date (YYYY-MM-DD format)
+            const isDateKey = /^\d{4}-\d{2}-\d{2}/.test(key);
+            // Check if value is an object with numeric fields (OHLC data)
+            const isOHLCData = typeof value === 'object' && value !== null && 
+                              Object.values(value).some(v => typeof v === 'string' && !isNaN(Number(v)));
+            
+            if (isDateKey && isOHLCData) {
+              // Convert object to array, preserving date as a field
+              return entries.map(([date, ohlcData]) => ({
+                ...(ohlcData as any),
+                _date: date, // Store date separately
+              }));
+            }
+          }
+          
+          // Recursively search nested objects
+          for (const value of Object.values(obj)) {
+            const found = findTimeSeriesObject(value, depth + 1);
+            if (found) return found;
+          }
+          
+          return null;
+        };
+        
+        const timeSeriesData = findTimeSeriesObject(data);
+        if (timeSeriesData) {
+          arrayData = timeSeriesData;
+        }
+      }
     }
 
     // Map fields to OHLC (Open, High, Low, Close)
@@ -93,11 +138,63 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
 
     // Transform array data for candlestick chart
     return arrayData.slice(0, 50).map((item, index) => {
-      const open = ohlcFields.open ? Number(getNestedValue(item, ohlcFields.open.path)) : 0;
-      const high = ohlcFields.high ? Number(getNestedValue(item, ohlcFields.high.path)) : 0;
-      const low = ohlcFields.low ? Number(getNestedValue(item, ohlcFields.low.path)) : 0;
-      const close = ohlcFields.close ? Number(getNestedValue(item, ohlcFields.close.path)) : 0;
-      const date = ohlcFields.date ? String(getNestedValue(item, ohlcFields.date.path)) : `Item ${index + 1}`;
+      // Try to extract OHLC values using field paths first
+      let open = ohlcFields.open ? Number(getNestedValue(item, ohlcFields.open.path)) : NaN;
+      let high = ohlcFields.high ? Number(getNestedValue(item, ohlcFields.high.path)) : NaN;
+      let low = ohlcFields.low ? Number(getNestedValue(item, ohlcFields.low.path)) : NaN;
+      let close = ohlcFields.close ? Number(getNestedValue(item, ohlcFields.close.path)) : NaN;
+      
+      // If not found via paths, try direct object access (for Alpha Vantage format: "1. open", "2. high", etc.)
+      if ((isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) && item && typeof item === 'object') {
+        // Try to find fields that contain open/high/low/close (case-insensitive)
+        const itemKeys = Object.keys(item);
+        
+        // Find open field (Alpha Vantage uses "1. open" or just "open")
+        if (isNaN(open)) {
+          const openKey = itemKeys.find(k => 
+            k.toLowerCase().includes('open') && !k.toLowerCase().includes('close')
+          );
+          if (openKey) open = Number(item[openKey]);
+        }
+        
+        // Find high field
+        if (isNaN(high)) {
+          const highKey = itemKeys.find(k => k.toLowerCase().includes('high'));
+          if (highKey) high = Number(item[highKey]);
+        }
+        
+        // Find low field
+        if (isNaN(low)) {
+          const lowKey = itemKeys.find(k => k.toLowerCase().includes('low'));
+          if (lowKey) low = Number(item[lowKey]);
+        }
+        
+        // Find close field
+        if (isNaN(close)) {
+          const closeKey = itemKeys.find(k => 
+            k.toLowerCase().includes('close') || 
+            (k.toLowerCase().includes('price') && !k.toLowerCase().includes('open'))
+          );
+          if (closeKey) close = Number(item[closeKey]);
+        }
+      }
+      
+      // Get date - try _date field first (from Alpha Vantage conversion), then field path, then object keys
+      let date: string;
+      if (item._date) {
+        date = String(item._date);
+      } else if (ohlcFields.date) {
+        date = String(getNestedValue(item, ohlcFields.date.path) || `Item ${index + 1}`);
+      } else {
+        // Try to find date in object keys
+        const itemKeys = Object.keys(item);
+        const dateKey = itemKeys.find(k => 
+          k.toLowerCase().includes('date') || 
+          k.toLowerCase().includes('time') ||
+          /^\d{4}-\d{2}-\d{2}/.test(k) // Date-like key
+        );
+        date = dateKey ? String(item[dateKey] || dateKey) : `Item ${index + 1}`;
+      }
 
       return {
         name: date,
