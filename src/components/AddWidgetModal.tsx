@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, TestTube } from 'lucide-react';
-import { WidgetConfig, WidgetField, DisplayMode, FieldMapping } from '@/types';
+import { WidgetConfig, WidgetField, DisplayMode, FieldMapping, ChartType } from '@/types';
 import { fetchApiData, extractFieldsFromJson } from '@/utils/api';
 import JSONFieldSelector from './JSONFieldSelector';
 
@@ -19,6 +19,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
   const [apiKeyHeader, setApiKeyHeader] = useState('x-api-key');
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('card');
+  const [chartType, setChartType] = useState<ChartType>('line');
   const [selectedFields, setSelectedFields] = useState<WidgetField[]>([]);
   const [showArraysOnly, setShowArraysOnly] = useState(false);
   
@@ -35,6 +36,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       setApiKeyHeader('x-api-key');
       setRefreshInterval(30);
       setDisplayMode('card');
+      setChartType('line');
       setSelectedFields([]);
       setFields([]);
       setTestResult(null);
@@ -118,6 +120,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       apiKeyHeader: keyToUse ? headerToUse : undefined,
       refreshInterval,
       displayMode,
+      chartType: displayMode === 'chart' ? chartType : undefined,
       selectedFields,
     });
 
@@ -228,6 +231,42 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
               className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
             />
           </div>
+
+          {/* Chart Type Selector (only for chart mode) */}
+          {displayMode === 'chart' && (
+            <div>
+              <label className="block text-sm font-medium text-dark-text mb-2">
+                Chart Type
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setChartType('line')}
+                  className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                    chartType === 'line'
+                      ? 'bg-primary text-white'
+                      : 'bg-dark-bg text-dark-muted hover:text-dark-text'
+                  }`}
+                >
+                  Line Chart
+                </button>
+                <button
+                  onClick={() => setChartType('candlestick')}
+                  className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                    chartType === 'candlestick'
+                      ? 'bg-primary text-white'
+                      : 'bg-dark-bg text-dark-muted hover:text-dark-text'
+                  }`}
+                >
+                  Candlestick Chart
+                </button>
+              </div>
+              {chartType === 'candlestick' && (
+                <p className="mt-2 text-xs text-dark-muted">
+                  Note: Candlestick charts require Open, High, Low, and Close fields. Select fields with these names.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Field Selector */}
           {fields.length > 0 && (
