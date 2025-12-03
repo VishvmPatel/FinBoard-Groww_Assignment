@@ -30,6 +30,9 @@ interface CandlestickData {
 
 export default function CandlestickChartWidget({ widget }: CandlestickChartWidgetProps) {
   const { data, loading, error } = useWidgetData(widget);
+  
+  // Get time interval for display purposes
+  const timeInterval = widget.timeInterval || 'daily';
 
   const chartData = useMemo(() => {
     if (!data || widget.selectedFields.length === 0) return [];
@@ -154,8 +157,28 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
     );
   };
 
+  // Format X-axis labels based on time interval
+  const formatXAxisLabel = (value: any, index: number): string => {
+    // If data has a date/timestamp field, use it
+    if (candlestickData[index] && candlestickData[index].date) {
+      const date = new Date(candlestickData[index].date);
+      if (timeInterval === 'daily') {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else if (timeInterval === 'weekly') {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else if (timeInterval === 'monthly') {
+        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      }
+    }
+    // Fallback to name or index
+    return value || String(index + 1);
+  };
+
   return (
     <div className="h-64 w-full">
+      <div className="mb-2 text-xs text-dark-muted text-center">
+        {timeInterval.charAt(0).toUpperCase() + timeInterval.slice(1)} Interval - Candlestick
+      </div>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={candlestickData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -166,6 +189,7 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
             textAnchor="end"
             height={60}
             interval="preserveStartEnd"
+            tickFormatter={formatXAxisLabel}
           />
           <YAxis stroke="#94a3b8" />
           <Tooltip

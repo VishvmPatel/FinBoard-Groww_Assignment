@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchApiData, getNestedValue } from '@/utils/api';
 import { WidgetConfig, ApiResponse, WidgetField } from '@/types';
+import { addTimeIntervalToUrl } from '@/utils/apiUrlBuilder';
 
 export function useWidgetData(widget: WidgetConfig) {
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -27,12 +28,18 @@ export function useWidgetData(widget: WidgetConfig) {
     setLoading(true);
     setError(null);
     
+    // Build the API URL with time interval if chart mode is selected
+    let apiUrl = widget.apiUrl;
+    if (widget.displayMode === 'chart' && widget.timeInterval) {
+      apiUrl = addTimeIntervalToUrl(widget.apiUrl, widget.timeInterval);
+    }
+    
     // Check if URL already has authentication in query params (like token=, apikey=, etc.)
     // If so, don't use header-based auth to avoid CORS issues
-    const urlHasAuth = widget.apiUrl.includes('token=') || 
-                      widget.apiUrl.includes('apikey=') || 
-                      widget.apiUrl.includes('api_key=') || 
-                      widget.apiUrl.includes('key=');
+    const urlHasAuth = apiUrl.includes('token=') || 
+                      apiUrl.includes('apikey=') || 
+                      apiUrl.includes('api_key=') || 
+                      apiUrl.includes('key=');
     
     // Only use header-based auth if:
     // 1. Both apiKey and apiKeyHeader are provided AND non-empty
@@ -47,7 +54,7 @@ export function useWidgetData(widget: WidgetConfig) {
     // Try direct request first (many APIs work fine with browser requests)
     // fetchApiData will automatically fall back to proxy if CORS fails
     const response = await fetchApiData(
-      widget.apiUrl,
+      apiUrl,
       keyToUse,
       headerToUse,
       0, // retryCount
@@ -81,7 +88,7 @@ export function useWidgetData(widget: WidgetConfig) {
     }
     
     setLoading(false);
-  }, [widget.apiUrl, widget.apiKey, widget.apiKeyHeader, widget.id, isRateLimited, rateLimitResetTime]);
+  }, [widget.apiUrl, widget.apiKey, widget.apiKeyHeader, widget.id, widget.displayMode, widget.timeInterval, isRateLimited, rateLimitResetTime]);
 
   useEffect(() => {
     fetchData();
