@@ -66,8 +66,114 @@ export default function TableWidget({ widget }: TableWidgetProps) {
     return [];
   }, [data, widget.selectedFields, getFieldValue]);
 
+  // Detect field types for filter options
+  const fieldTypes = useMemo(() => {
+    const types: Record<string, FilterType> = {};
+    
+    if (tableData.length > 0) {
+      widget.selectedFields.forEach((field) => {
+        const sampleValue = getNestedValue(tableData[0], field.path);
+        
+        if (sampleValue === null || sampleValue === undefined) {
+          types[field.path] = 'text';
+        } else if (typeof sampleValue === 'number') {
+          types[field.path] = 'number';
+        } else if (typeof sampleValue === 'string') {
+          // Check if it's a date string
+          const dateValue = new Date(sampleValue);
+          if (!isNaN(dateValue.getTime()) && sampleValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+            types[field.path] = 'date';
+          } else {
+            types[field.path] = 'text';
+          }
+        } else if (sampleValue instanceof Date) {
+          types[field.path] = 'date';
+        } else {
+          types[field.path] = 'text';
+        }
+      });
+    }
+    
+    return types;
+  }, [tableData, widget.selectedFields]);
+
+  // Get unique values for select/multiselect filters
+  const fieldUniqueValues = useMemo(() => {
+    const values: Record<string, string[]> = {};
+    
+    widget.selectedFields.forEach((field) => {
+      const uniqueSet = new Set<string>();
+      tableData.forEach((row) => {
+        const value = getNestedValue(row, field.path);
+        if (value !== null && value !== undefined) {
+          uniqueSet.add(String(value));
+        }
+      });
+      values[field.path] = Array.from(uniqueSet).sort();
+    });
+    
+    return values;
+  }, [tableData, widget.selectedFields]);
+
   const filteredAndSortedData = useMemo(() => {
     let result = [...tableData];
+
+    // Apply column filters
+    Object.values(columnFilters).forEach((filter) => {
+      if (!filter.value && !filter.min && !filter.max && !filter.dateFrom && !filter.dateTo && 
+          (!filter.selectedOptions || filter.selectedOptions.length === 0)) {
+        return; // Skip empty filters
+      }
+
+      result = result.filter((row) => {
+        const cellValue = getNestedValue(row, filter.fieldPath);
+        
+        switch (filter.filterType) {
+          case 'text':
+            if (filter.value) {
+              return String(cellValue).toLowerCase().includes(String(filter.value).toLowerCase());
+            }
+            return true;
+            
+          case 'number':
+            const numValue = Number(cellValue);
+            if (isNaN(numValue)) return false;
+            if (filter.min !== undefined && numValue < filter.min) return false;
+            if (filter.max !== undefined && numValue > filter.max) return false;
+            return true;
+            
+          case 'date':
+            if (!cellValue) return false;
+            const dateValue = new Date(cellValue);
+            if (isNaN(dateValue.getTime())) return false;
+            if (filter.dateFrom) {
+              const fromDate = new Date(filter.dateFrom);
+              if (dateValue < fromDate) return false;
+            }
+            if (filter.dateTo) {
+              const toDate = new Date(filter.dateTo);
+              toDate.setHours(23, 59, 59, 999); // Include entire end date
+              if (dateValue > toDate) return false;
+            }
+            return true;
+            
+          case 'select':
+            if (filter.value) {
+              return String(cellValue) === String(filter.value);
+            }
+            return true;
+            
+          case 'multiselect':
+            if (filter.selectedOptions && filter.selectedOptions.length > 0) {
+              return filter.selectedOptions.includes(String(cellValue));
+            }
+            return true;
+            
+          default:
+            return true;
+        }
+      });
+    });
 
     // Apply search
     if (searchQuery) {
@@ -105,7 +211,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
     }
 
     return result;
-  }, [tableData, searchQuery, sortConfig, widget.selectedFields]);
+  }, [tableData, searchQuery, sortConfig, columnFilters, widget.selectedFields]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredAndSortedData.length / pageSize);
@@ -206,17 +312,191 @@ export default function TableWidget({ widget }: TableWidgetProps) {
         </div>
       )}
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-dark-muted" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Q Search table..."
-          className="w-full pl-10 pr-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
-        />
+      {/* Search and Filter Toggle */}
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-dark-muted" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search table..."
+            className="w-full pl-10 pr-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
+          />
+        </div>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text hover:bg-dark-hover transition-colors flex items-center gap-2 ${
+            hasActiveFilters ? 'border-primary' : ''
+          }`}
+          title="Toggle column filters"
+        >
+          <Filter className={`w-4 h-4 ${hasActiveFilters ? 'text-primary' : 'text-dark-muted'}`} />
+          {hasActiveFilters && (
+            <span className="text-xs bg-primary text-white px-2 py-0.5 rounded-full">
+              {Object.keys(columnFilters).length}
+            </span>
+          )}
+        </button>
+        {hasActiveFilters && (
+          <button
+            onClick={clearAllFilters}
+            className="px-3 py-2 bg-dark-bg border border-dark-border rounded text-dark-muted hover:text-dark-text hover:bg-dark-hover transition-colors"
+            title="Clear all filters"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
+
+      {/* Column Filters Panel */}
+      {showFilters && (
+        <div className="mb-4 p-4 bg-dark-bg border border-dark-border rounded">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-dark-text">Column Filters</h4>
+            <button
+              onClick={clearAllFilters}
+              className="text-xs text-dark-muted hover:text-dark-text"
+            >
+              Clear All
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {widget.selectedFields.map((field) => {
+              const displayName = field.displayName || field.path.split('.').pop() || field.path;
+              const filterType = fieldTypes[field.path] || 'text';
+              const filter = columnFilters[field.path] || initializeFilter(field.path);
+              const uniqueValues = fieldUniqueValues[field.path] || [];
+
+              return (
+                <div key={field.path} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-dark-muted">{displayName}</label>
+                    {columnFilters[field.path] && (
+                      <button
+                        onClick={() => clearFilter(field.path)}
+                        className="text-xs text-dark-muted hover:text-red-400"
+                        title="Clear filter"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Text Filter */}
+                  {filterType === 'text' && (
+                    <input
+                      type="text"
+                      value={filter.value || ''}
+                      onChange={(e) => handleFilterChange(field.path, { value: e.target.value })}
+                      placeholder="Filter text..."
+                      className="w-full px-3 py-1.5 text-sm bg-dark-card border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
+                    />
+                  )}
+
+                  {/* Number Range Filter */}
+                  {filterType === 'number' && (
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={filter.min ?? ''}
+                        onChange={(e) => handleFilterChange(field.path, { 
+                          min: e.target.value ? Number(e.target.value) : undefined 
+                        })}
+                        placeholder="Min"
+                        className="flex-1 px-3 py-1.5 text-sm bg-dark-card border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
+                      />
+                      <input
+                        type="number"
+                        value={filter.max ?? ''}
+                        onChange={(e) => handleFilterChange(field.path, { 
+                          max: e.target.value ? Number(e.target.value) : undefined 
+                        })}
+                        placeholder="Max"
+                        className="flex-1 px-3 py-1.5 text-sm bg-dark-card border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  )}
+
+                  {/* Date Range Filter */}
+                  {filterType === 'date' && (
+                    <div className="flex gap-2">
+                      <input
+                        type="date"
+                        value={filter.dateFrom || ''}
+                        onChange={(e) => handleFilterChange(field.path, { dateFrom: e.target.value })}
+                        className="flex-1 px-3 py-1.5 text-sm bg-dark-card border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+                      />
+                      <input
+                        type="date"
+                        value={filter.dateTo || ''}
+                        onChange={(e) => handleFilterChange(field.path, { dateTo: e.target.value })}
+                        className="flex-1 px-3 py-1.5 text-sm bg-dark-card border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  )}
+
+                  {/* Select Filter (for fields with limited unique values) */}
+                  {filterType === 'text' && uniqueValues.length > 0 && uniqueValues.length <= 20 && (
+                    <select
+                      value={filter.value || ''}
+                      onChange={(e) => handleFilterChange(field.path, { 
+                        value: e.target.value,
+                        filterType: 'select'
+                      })}
+                      className="w-full px-3 py-1.5 text-sm bg-dark-card border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+                    >
+                      <option value="">All values</option>
+                      {uniqueValues.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Multi-select Filter (for categorical data) */}
+                  {filterType === 'text' && uniqueValues.length > 0 && uniqueValues.length <= 50 && (
+                    <div className="max-h-32 overflow-y-auto border border-dark-border rounded p-2 bg-dark-card">
+                      {uniqueValues.slice(0, 20).map((value) => {
+                        const isSelected = filter.selectedOptions?.includes(value) || false;
+                        return (
+                          <label
+                            key={value}
+                            className="flex items-center gap-2 py-1 text-xs text-dark-text cursor-pointer hover:bg-dark-bg px-2 rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const currentOptions = filter.selectedOptions || [];
+                                const newOptions = e.target.checked
+                                  ? [...currentOptions, value]
+                                  : currentOptions.filter((opt) => opt !== value);
+                                handleFilterChange(field.path, { 
+                                  selectedOptions: newOptions,
+                                  filterType: 'multiselect'
+                                });
+                              }}
+                              className="w-3 h-3 text-primary bg-dark-bg border-dark-border rounded focus:ring-primary"
+                            />
+                            <span className="truncate">{value}</span>
+                          </label>
+                        );
+                      })}
+                      {uniqueValues.length > 20 && (
+                        <p className="text-xs text-dark-muted mt-2 text-center">
+                          +{uniqueValues.length - 20} more values
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
