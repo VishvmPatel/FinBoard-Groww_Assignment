@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
+import type { TooltipProps } from 'recharts';
 import { WidgetConfig } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { getNestedValue } from '@/utils/api';
@@ -271,6 +272,94 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
     return value || String(index + 1);
   };
 
+  // Custom Tooltip Component
+  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+    if (!active || !payload || payload.length === 0) {
+      return null;
+    }
+
+    // Get data from payload - try different possible structures
+    const data = (payload[0]?.payload || payload[0]?.payload) as any;
+    
+    if (!data || typeof data.open === 'undefined') {
+      return null;
+    }
+
+    const formatCurrency = (value: number) => {
+      if (isNaN(value) || value === null || value === undefined) return '$0.00';
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value);
+    };
+
+    const open = Number(data.open) || 0;
+    const high = Number(data.high) || 0;
+    const low = Number(data.low) || 0;
+    const close = Number(data.close) || 0;
+    const isPositive = close >= open;
+
+    return (
+      <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-3 shadow-lg min-w-[220px] z-50">
+        <p className="text-sm font-semibold text-[#f1f5f9] mb-3 border-b border-[#334155] pb-2">
+          {data.date || data.name || label || 'Date'}
+        </p>
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
+              <span className="text-xs text-[#94a3b8]">Open:</span>
+            </div>
+            <span className="text-sm font-medium text-[#f1f5f9]">
+              {formatCurrency(open)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
+              <span className="text-xs text-[#94a3b8]">High:</span>
+            </div>
+            <span className="text-sm font-medium text-green-400">
+              {formatCurrency(high)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500 flex-shrink-0"></div>
+              <span className="text-xs text-[#94a3b8]">Low:</span>
+            </div>
+            <span className="text-sm font-medium text-red-400">
+              {formatCurrency(low)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full flex-shrink-0 ${isPositive ? 'bg-[#10b981]' : 'bg-red-500'}`}></div>
+              <span className="text-xs text-[#94a3b8]">Close:</span>
+            </div>
+            <span className={`text-sm font-medium ${isPositive ? 'text-[#10b981]' : 'text-red-400'}`}>
+              {formatCurrency(close)}
+            </span>
+          </div>
+          {open > 0 && (
+            <div className="mt-2 pt-2 border-t border-[#334155]">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-[#94a3b8]">Change:</span>
+                <span className={`text-xs font-medium ${isPositive ? 'text-[#10b981]' : 'text-red-400'}`}>
+                  {isPositive ? '+' : ''}
+                  {formatCurrency(close - open)} (
+                  {((close - open) / open * 100).toFixed(2)}%)
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-64 w-full">
       <div className="mb-2 text-xs text-dark-muted text-center">
@@ -289,21 +378,7 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
             tickFormatter={formatXAxisLabel}
           />
           <YAxis stroke="#94a3b8" />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '0.5rem',
-              color: '#f1f5f9',
-            }}
-            formatter={(value: any, name: string) => {
-              if (name === 'open' || name === 'high' || name === 'low' || name === 'close') {
-                return [value.toFixed(2), name.toUpperCase()];
-              }
-              return [value, name];
-            }}
-            labelFormatter={(label) => `Date: ${label}`}
-          />
+          <Tooltip content={<CustomTooltip />} />
           {/* High-Low range bar (represents the wick) */}
           <Bar 
             dataKey="range" 
@@ -338,4 +413,3 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
     </div>
   );
 }
-

@@ -196,5 +196,3 @@ export default function ChartWidget({ widget }: ChartWidgetProps) {
     </div>
   );
 }
-
-
