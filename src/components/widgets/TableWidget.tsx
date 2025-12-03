@@ -5,6 +5,7 @@ import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucid
 import { WidgetConfig, WidgetField } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { getNestedValue } from '@/utils/api';
+import { formatFieldValue } from '@/utils/formatting';
 
 interface TableWidgetProps {
   widget: WidgetConfig;
@@ -298,9 +299,14 @@ export default function TableWidget({ widget }: TableWidgetProps) {
                   // Fallback to nested value extraction
                   const value = getNestedValue(row, fieldPath);
                   
+                  // Apply formatting if specified
+                  const formattedValue = field.format
+                    ? formatFieldValue(value, field)
+                    : (value !== null && value !== undefined ? String(value) : 'N/A');
+                  
                   return (
                     <td key={field.path} className="p-3 text-sm text-dark-text">
-                      {value !== null && value !== undefined ? String(value) : 'N/A'}
+                      {formattedValue}
                     </td>
                   );
                 })}

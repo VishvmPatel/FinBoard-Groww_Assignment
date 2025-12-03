@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, BarChart3 } from 'lucide-react';
+import { Plus, BarChart3, Download, Upload } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { addWidget, removeWidget, updateWidget, updateWidgetLayout } from '@/store/slices/widgetsSlice';
+import { addWidget, removeWidget, updateWidget, updateWidgetLayout, setWidgets } from '@/store/slices/widgetsSlice';
 import { WidgetConfig } from '@/types';
 import { useLocalStoragePersistence } from '@/hooks/useLocalStorage';
 import { generateWidgetId } from '@/utils/helpers';
-import { loadLayoutFromStorage } from '@/utils/persistence';
+import { loadLayoutFromStorage, exportDashboardConfig, importDashboardConfig } from '@/utils/persistence';
 import AddWidgetModal from '@/components/AddWidgetModal';
 import EditWidgetModal from '@/components/EditWidgetModal';
 import WidgetContainer from '@/components/WidgetContainer';
@@ -25,6 +25,8 @@ export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWidget, setEditingWidget] = useState<WidgetConfig | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState(false);
   
   // Initialize localStorage persistence
   useLocalStoragePersistence();
@@ -78,6 +80,66 @@ export default function Dashboard() {
     setEditingWidget(null);
   };
 
+  const handleExport = () => {
+    const configJson = exportDashboardConfig(widgets);
+    const blob = new Blob([configJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `finboard-dashboard-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const jsonString = event.target?.result as string;
+          const importedWidgets = importDashboardConfig(jsonString);
+          
+          if (importedWidgets) {
+            // Validate imported widgets
+            const validWidgets = importedWidgets.filter((w) => 
+              w.id && w.name && w.apiUrl && w.selectedFields && Array.isArray(w.selectedFields)
+            );
+            
+            if (validWidgets.length === 0) {
+              setImportError('Invalid dashboard configuration file. No valid widgets found.');
+              setImportSuccess(false);
+              return;
+            }
+
+            // Replace current widgets with imported ones
+            dispatch(setWidgets(validWidgets));
+            setImportSuccess(true);
+            setImportError(null);
+            
+            // Clear success message after 3 seconds
+            setTimeout(() => setImportSuccess(false), 3000);
+          } else {
+            setImportError('Failed to parse dashboard configuration file.');
+            setImportSuccess(false);
+          }
+        } catch (error) {
+          setImportError('Error reading file: ' + (error instanceof Error ? error.message : 'Unknown error'));
+          setImportSuccess(false);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   const handleLayoutChange = (layout: any[]) => {
     const layoutMap: Record<string, { x: number; y: number; w: number; h: number }> = {};
     
@@ -129,14 +191,42 @@ export default function Dashboard() {
               {widgets.length} active widget{widgets.length !== 1 ? 's' : ''} • Real-time data
             </p>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Add Widget
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 bg-dark-bg hover:bg-dark-border text-dark-text rounded-lg font-medium transition-colors flex items-center gap-2 border border-dark-border"
+              title="Export Dashboard"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            <button
+              onClick={handleImport}
+              className="px-4 py-2 bg-dark-bg hover:bg-dark-border text-dark-text rounded-lg font-medium transition-colors flex items-center gap-2 border border-dark-border"
+              title="Import Dashboard"
+            >
+              <Upload className="w-4 h-4" />
+              Import
+            </button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Add Widget
+            </button>
+          </div>
         </div>
+        {/* Import Success/Error Messages */}
+        {(importSuccess || importError) && (
+          <div className={`mt-2 px-4 py-2 rounded text-sm ${
+            importSuccess 
+              ? 'bg-primary/20 text-primary border border-primary/50' 
+              : 'bg-red-500/20 text-red-400 border border-red-500/50'
+          }`}>
+            {importSuccess ? '✓ Dashboard imported successfully!' : importError}
+          </div>
+        )}
       </header>
 
       {/* Main Content */}

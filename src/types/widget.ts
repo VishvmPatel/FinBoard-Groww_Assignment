@@ -1,11 +1,17 @@
 export type DisplayMode = 'card' | 'table' | 'chart';
 
 export type ChartType = 'line' | 'candlestick';
+export type TimeInterval = 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export type FieldFormat = 'none' | 'currency' | 'percentage' | 'number' | 'date' | 'datetime';
 
 export interface WidgetField {
   path: string;
   displayName?: string;
   type?: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  format?: FieldFormat;
+  currencySymbol?: string; // For currency format (e.g., '$', '₹', '€')
+  decimalPlaces?: number; // Number of decimal places
 }
 
 export interface WidgetConfig {
@@ -18,6 +24,7 @@ export interface WidgetConfig {
   displayMode: DisplayMode;
   selectedFields: WidgetField[];
   chartType?: ChartType;
+  timeInterval?: TimeInterval; // For chart time intervals (Daily, Weekly, Monthly)
   layout?: {
     x: number;
     y: number;

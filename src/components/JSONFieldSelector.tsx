@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, X, Search } from 'lucide-react';
+import { Plus, X, Search, Settings } from 'lucide-react';
 import { FieldMapping, WidgetField, DisplayMode } from '@/types';
+import { formatOptions, currencySymbols } from '@/utils/formatting';
 
 interface JSONFieldSelectorProps {
   fields: FieldMapping[];
@@ -162,33 +163,154 @@ export default function JSONFieldSelector({
         {/* Selected Fields */}
         <div>
           <label className="block text-sm font-medium text-dark-text mb-2">Selected Fields</label>
-          <div className="bg-dark-bg border border-dark-border rounded p-3 max-h-96 overflow-y-auto">
+          <div className="bg-dark-bg border border-dark-border rounded p-3 max-h-96 overflow-y-auto space-y-2">
             {selectedFields.length === 0 ? (
               <p className="text-sm text-dark-muted text-center py-4">No fields selected</p>
             ) : (
-              selectedFields.map((field) => (
-                <div
+              selectedFields.map((field, index) => (
+                <FieldConfigItem
                   key={field.path}
-                  className="flex items-center justify-between p-2 hover:bg-dark-card rounded group mb-1"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-dark-text font-mono truncate">{field.path}</div>
-                    {field.displayName && field.displayName !== field.path && (
-                      <div className="text-xs text-dark-muted">{field.displayName}</div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => removeField(field.path)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-opacity"
-                  >
-                    <X className="w-4 h-4 text-red-400" />
-                  </button>
-                </div>
+                  field={field}
+                  onUpdate={(updated) => {
+                    const newFields = [...selectedFields];
+                    newFields[index] = updated;
+                    onFieldsChange(newFields);
+                  }}
+                  onRemove={() => removeField(field.path)}
+                />
               ))
             )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Field configuration component for selected fields
+function FieldConfigItem({
+  field,
+  onUpdate,
+  onRemove,
+}: {
+  field: WidgetField;
+  onUpdate: (field: WidgetField) => void;
+  onRemove: () => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleFormatChange = (format: WidgetField['format']) => {
+    onUpdate({ ...field, format });
+  };
+
+  const handleCurrencySymbolChange = (symbol: string) => {
+    onUpdate({ ...field, currencySymbol: symbol });
+  };
+
+  const handleDecimalPlacesChange = (places: number) => {
+    onUpdate({ ...field, decimalPlaces: places });
+  };
+
+  const handleDisplayNameChange = (name: string) => {
+    onUpdate({ ...field, displayName: name });
+  };
+
+  return (
+    <div className="border border-dark-border rounded p-2 hover:bg-dark-card transition-colors">
+      <div className="flex items-center justify-between group">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-dark-text font-mono truncate">{field.path}</div>
+          {field.displayName && field.displayName !== field.path && (
+            <div className="text-xs text-dark-muted">{field.displayName}</div>
+          )}
+          {field.format && field.format !== 'none' && (
+            <div className="text-xs text-primary mt-1">
+              Format: {formatOptions.find((f) => f.value === field.format)?.label}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-dark-bg rounded transition-opacity"
+            title="Configure"
+          >
+            <Settings className="w-4 h-4 text-dark-muted" />
+          </button>
+          <button
+            onClick={onRemove}
+            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-opacity"
+            title="Remove"
+          >
+            <X className="w-4 h-4 text-red-400" />
+          </button>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-dark-border space-y-3">
+          {/* Display Name */}
+          <div>
+            <label className="block text-xs font-medium text-dark-text mb-1">Display Name</label>
+            <input
+              type="text"
+              value={field.displayName || ''}
+              onChange={(e) => handleDisplayNameChange(e.target.value)}
+              placeholder="Custom display name (optional)"
+              className="w-full px-2 py-1 text-xs bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+            />
+          </div>
+
+          {/* Format */}
+          <div>
+            <label className="block text-xs font-medium text-dark-text mb-1">Format</label>
+            <select
+              value={field.format || 'none'}
+              onChange={(e) => handleFormatChange(e.target.value as WidgetField['format'])}
+              className="w-full px-2 py-1 text-xs bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+            >
+              {formatOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Currency Symbol (if currency format) */}
+          {field.format === 'currency' && (
+            <div>
+              <label className="block text-xs font-medium text-dark-text mb-1">Currency Symbol</label>
+              <select
+                value={field.currencySymbol || '$'}
+                onChange={(e) => handleCurrencySymbolChange(e.target.value)}
+                className="w-full px-2 py-1 text-xs bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+              >
+                {currencySymbols.map((symbol) => (
+                  <option key={symbol.value} value={symbol.value}>
+                    {symbol.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Decimal Places (for currency, percentage, number) */}
+          {(field.format === 'currency' || field.format === 'percentage' || field.format === 'number') && (
+            <div>
+              <label className="block text-xs font-medium text-dark-text mb-1">Decimal Places</label>
+              <input
+                type="number"
+                value={field.decimalPlaces !== undefined ? field.decimalPlaces : 2}
+                onChange={(e) => handleDecimalPlacesChange(parseInt(e.target.value) || 2)}
+                min="0"
+                max="10"
+                className="w-full px-2 py-1 text-xs bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

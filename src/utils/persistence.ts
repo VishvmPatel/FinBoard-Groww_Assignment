@@ -5,12 +5,14 @@ const LAYOUT_KEY = 'finboard-layout';
 
 export function saveWidgetsToStorage(widgets: WidgetConfig[]): void {
   try {
+    // Always save, even if empty array (to clear storage when all widgets removed)
     const serializable = widgets.map((w) => ({
       ...w,
       createdAt: w.createdAt,
       lastUpdated: w.lastUpdated,
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(serializable));
+    console.log(`[Persistence] Saved ${widgets.length} widget(s) to localStorage`);
   } catch (error) {
     console.error('Failed to save widgets to storage:', error);
   }

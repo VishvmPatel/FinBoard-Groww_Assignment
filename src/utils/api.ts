@@ -1,7 +1,54 @@
 import { ApiResponse, FieldMapping } from '@/types';
 
-export async function fetchApiData(url: string, apiKey?: string, apiKeyHeader?: string): Promise<ApiResponse> {
+// Rate limit tracking
+const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
+
+// Check if we're rate limited
+function checkRateLimit(url: string): { limited: boolean; resetTime?: number } {
+  const now = Date.now();
+  const cacheKey = new URL(url).origin;
+  const limit = rateLimitCache.get(cacheKey);
+
+  if (limit && now < limit.resetTime) {
+    return { limited: true, resetTime: limit.resetTime };
+  }
+
+  // Clean up expired entries
+  if (limit && now >= limit.resetTime) {
+    rateLimitCache.delete(cacheKey);
+  }
+
+  return { limited: false };
+}
+
+// Record rate limit
+function recordRateLimit(url: string, resetTime: number) {
+  const cacheKey = new URL(url).origin;
+  rateLimitCache.set(cacheKey, {
+    count: 1,
+    resetTime: resetTime,
+  });
+}
+
+export async function fetchApiData(
+  url: string,
+  apiKey?: string,
+  apiKeyHeader?: string,
+  retryCount = 0,
+  maxRetries = 3
+): Promise<ApiResponse> {
   try {
+    // Check rate limit before making request
+    const rateLimitCheck = checkRateLimit(url);
+    if (rateLimitCheck.limited) {
+      const waitTime = Math.ceil((rateLimitCheck.resetTime! - Date.now()) / 1000);
+      return {
+        data: null,
+        error: `Rate limit exceeded. Please wait ${waitTime} seconds before trying again.`,
+        timestamp: Date.now(),
+      };
+    }
+
     // Build headers object
     const headers: Record<string, string> = {};
     
@@ -22,6 +69,8 @@ export async function fetchApiData(url: string, apiKey?: string, apiKeyHeader?: 
     if (!response.ok) {
       // Try to get error message from response body
       let errorMessage = `HTTP error! status: ${response.status}`;
+      let resetTime: number | null = null;
+      
       try {
         const errorData = await response.json();
         // Extract error message from various possible formats
@@ -32,6 +81,12 @@ export async function fetchApiData(url: string, apiKey?: string, apiKeyHeader?: 
           errorData.error_message ||
           errorData.msg ||
           (typeof errorData === 'string' ? errorData : errorMessage);
+        
+        // Check for rate limit reset time in response headers or body
+        const retryAfter = response.headers.get('Retry-After') || errorData.retry_after || errorData.retryAfter;
+        if (retryAfter) {
+          resetTime = Date.now() + (parseInt(String(retryAfter)) * 1000);
+        }
       } catch {
         // If response is not JSON, use status text
         errorMessage = response.statusText || errorMessage;
@@ -39,14 +94,43 @@ export async function fetchApiData(url: string, apiKey?: string, apiKeyHeader?: 
 
       // Handle specific error cases
       if (response.status === 429) {
-        throw new Error('API rate limit exceeded. Please try again later.');
+        // Rate limit exceeded
+        const retryAfter = response.headers.get('Retry-After');
+        if (retryAfter) {
+          resetTime = Date.now() + (parseInt(retryAfter) * 1000);
+          recordRateLimit(url, resetTime);
+        } else {
+          // Default to 60 seconds if no Retry-After header
+          resetTime = Date.now() + 60000;
+          recordRateLimit(url, resetTime);
+        }
+        
+        // Retry with exponential backoff if retries remaining
+        if (retryCount < maxRetries && resetTime) {
+          const waitTime = Math.min((resetTime - Date.now()) / 1000, 60); // Max 60 seconds
+          await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
+          return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries);
+        }
+        
+        const waitTime = resetTime ? Math.ceil((resetTime - Date.now()) / 1000) : 60;
+        throw new Error(`API rate limit exceeded. Please wait ${waitTime} seconds before trying again.`);
       }
+      
       if (response.status === 401 || response.status === 403) {
         throw new Error('Invalid API key or unauthorized access.');
       }
+      
       if (response.status === 400) {
         throw new Error(`Bad Request: ${errorMessage}. Check your API parameters (symbol format, parameter names, etc.).`);
       }
+      
+      // Retry on server errors (5xx) with exponential backoff
+      if (response.status >= 500 && retryCount < maxRetries) {
+        const backoffDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+        return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries);
+      }
+      
       throw new Error(errorMessage);
     }
 

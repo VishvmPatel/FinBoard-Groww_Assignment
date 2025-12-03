@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, TestTube } from 'lucide-react';
-import { WidgetConfig, WidgetField, DisplayMode, FieldMapping, ChartType } from '@/types';
+import { WidgetConfig, WidgetField, DisplayMode, FieldMapping, ChartType, TimeInterval } from '@/types';
 import { fetchApiData, extractFieldsFromJson } from '@/utils/api';
 import JSONFieldSelector from './JSONFieldSelector';
 
@@ -20,6 +20,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('card');
   const [chartType, setChartType] = useState<ChartType>('line');
+  const [timeInterval, setTimeInterval] = useState<TimeInterval>('daily');
   const [selectedFields, setSelectedFields] = useState<WidgetField[]>([]);
   const [showArraysOnly, setShowArraysOnly] = useState(false);
   
@@ -37,6 +38,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       setRefreshInterval(30);
       setDisplayMode('card');
       setChartType('line');
+      setTimeInterval('daily');
       setSelectedFields([]);
       setFields([]);
       setTestResult(null);
@@ -121,6 +123,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       refreshInterval,
       displayMode,
       chartType: displayMode === 'chart' ? chartType : undefined,
+      timeInterval: displayMode === 'chart' ? timeInterval : undefined,
       selectedFields,
     });
 
@@ -234,38 +237,65 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
 
           {/* Chart Type Selector (only for chart mode) */}
           {displayMode === 'chart' && (
-            <div>
-              <label className="block text-sm font-medium text-dark-text mb-2">
-                Chart Type
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setChartType('line')}
-                  className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                    chartType === 'line'
-                      ? 'bg-primary text-white'
-                      : 'bg-dark-bg text-dark-muted hover:text-dark-text'
-                  }`}
-                >
-                  Line Chart
-                </button>
-                <button
-                  onClick={() => setChartType('candlestick')}
-                  className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                    chartType === 'candlestick'
-                      ? 'bg-primary text-white'
-                      : 'bg-dark-bg text-dark-muted hover:text-dark-text'
-                  }`}
-                >
-                  Candlestick Chart
-                </button>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-dark-text mb-2">
+                  Chart Type
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setChartType('line')}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                      chartType === 'line'
+                        ? 'bg-primary text-white'
+                        : 'bg-dark-bg text-dark-muted hover:text-dark-text'
+                    }`}
+                  >
+                    Line Chart
+                  </button>
+                  <button
+                    onClick={() => setChartType('candlestick')}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                      chartType === 'candlestick'
+                        ? 'bg-primary text-white'
+                        : 'bg-dark-bg text-dark-muted hover:text-dark-text'
+                    }`}
+                  >
+                    Candlestick Chart
+                  </button>
+                </div>
+                {chartType === 'candlestick' && (
+                  <p className="mt-2 text-xs text-dark-muted">
+                    Note: Candlestick charts require Open, High, Low, and Close fields. Select fields with these names.
+                  </p>
+                )}
               </div>
-              {chartType === 'candlestick' && (
+
+              {/* Time Interval Selector */}
+              <div>
+                <label className="block text-sm font-medium text-dark-text mb-2">
+                  Time Interval
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {(['daily', 'weekly', 'monthly'] as TimeInterval[]).map((interval) => (
+                    <button
+                      key={interval}
+                      onClick={() => setTimeInterval(interval)}
+                      className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                        timeInterval === interval
+                          ? 'bg-primary text-white'
+                          : 'bg-dark-bg text-dark-muted hover:text-dark-text'
+                      }`}
+                    >
+                      {interval.charAt(0).toUpperCase() + interval.slice(1)}
+                    </button>
+                  ))}
+                </div>
                 <p className="mt-2 text-xs text-dark-muted">
-                  Note: Candlestick charts require Open, High, Low, and Close fields. Select fields with these names.
+                  Note: The time interval is stored for reference. You may need to adjust your API URL parameters to match the selected interval.
                 </p>
-              )}
-            </div>
+              </div>
+            </>
           )}
 
           {/* Field Selector */}

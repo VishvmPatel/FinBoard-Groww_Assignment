@@ -2,6 +2,7 @@
 
 import { WidgetConfig, WidgetField } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
+import { formatFieldValue } from '@/utils/formatting';
 
 interface CardWidgetProps {
   widget: WidgetConfig;
@@ -109,7 +110,10 @@ export default function CardWidget({ widget }: CardWidgetProps) {
       {widget.selectedFields.map((field) => {
         const value = getFieldValue(field);
         const displayName = field.displayName || field.path.split('.').pop() || field.path;
-        const formattedValue = formatValue(value);
+        // Use custom formatting if available, otherwise use fallback formatting
+        const formattedValue = field.format 
+          ? formatFieldValue(value, field)
+          : formatValue(value);
 
         return (
           <div
