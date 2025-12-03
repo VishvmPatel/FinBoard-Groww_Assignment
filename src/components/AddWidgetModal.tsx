@@ -56,14 +56,29 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
     setTestResult(null);
 
     try {
-      // Use API key from input field, or extract from URL if not provided
-      const keyToUse = apiKey.trim() || extractApiKeyFromUrl(apiUrl);
-      const headerToUse = apiKeyHeader.trim() || 'x-api-key';
+      // For APIs that use query parameters for auth (like Finnhub with 'token' param),
+      // don't extract or add as header. Only use header-based auth if explicitly provided.
+      let keyToUse: string | undefined = undefined;
+      let headerToUse: string | undefined = undefined;
       
+      // Only use header-based auth if both apiKey and apiKeyHeader are explicitly provided
+      // Don't extract from URL for APIs that use query params (like Finnhub)
+      if (apiKey.trim() && apiKeyHeader.trim()) {
+        keyToUse = apiKey.trim();
+        headerToUse = apiKeyHeader.trim();
+      }
+      // If only apiKey is provided but no header, don't use header auth
+      // (the API might use query params or the key might already be in the URL)
+      
+      // Try direct request first (many APIs work fine with browser requests)
+      // fetchApiData will automatically fall back to proxy if CORS fails
       const response = await fetchApiData(
         apiUrl,
-        keyToUse || undefined,
-        headerToUse || undefined
+        keyToUse,
+        headerToUse,
+        0, // retryCount
+        3, // maxRetries
+        false // Don't force proxy - try direct first, fallback to proxy on CORS
       );
       
       if (response.error) {
@@ -111,9 +126,10 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       return;
     }
 
-    // Extract API key from URL if not provided in field
-    const keyToUse = apiKey.trim() || extractApiKeyFromUrl(apiUrl);
-    const headerToUse = apiKeyHeader.trim() || 'x-api-key';
+    // Only use header-based auth if both apiKey and apiKeyHeader are explicitly provided
+    // Don't extract from URL - many APIs (like Finnhub) use query params for auth
+    const keyToUse = apiKey.trim() && apiKeyHeader.trim() ? apiKey.trim() : undefined;
+    const headerToUse = apiKey.trim() && apiKeyHeader.trim() ? apiKeyHeader.trim() : undefined;
 
     onAdd({
       name: widgetName,
@@ -172,7 +188,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
                 type="url"
                 value={apiUrl}
                 onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="e.g., https://stock.indianapi.in/stock?name=RELIANCE"
+                placeholder="e.g., https://api.example.com/endpoint?param=value"
                 className="flex-1 px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
               />
               <button
@@ -217,7 +233,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
               />
             </div>
             <p className="mt-1 text-xs text-dark-muted">
-              Leave empty if API key is in URL. For Indian Stock API, enter your API key here and use header name "x-api-key"
+              Leave empty if API key is in URL. For APIs requiring header-based auth (e.g., x-api-key), enter your API key here
             </p>
           </div>
 

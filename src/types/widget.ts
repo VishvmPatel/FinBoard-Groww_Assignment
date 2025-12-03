@@ -52,4 +52,3 @@ export interface DashboardState {
   widgets: WidgetConfig[];
   layout: Record<string, { x: number; y: number; w: number; h: number }>;
 }
-

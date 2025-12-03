@@ -35,7 +35,8 @@ export async function fetchApiData(
   apiKey?: string,
   apiKeyHeader?: string,
   retryCount = 0,
-  maxRetries = 3
+  maxRetries = 3,
+  useProxy = false
 ): Promise<ApiResponse> {
   try {
     // Check rate limit before making request
@@ -49,19 +50,45 @@ export async function fetchApiData(
       };
     }
 
-    // Build headers object
+    let response: Response;
+    let finalUrl = url;
+
+    // Use Next.js API proxy for CORS issues
+    if (useProxy) {
+      const proxyUrl = new URL('/api/proxy', window.location.origin);
+      proxyUrl.searchParams.set('url', url);
+      // Only add API key params if both are provided (for header-based auth)
+      if (apiKey && apiKeyHeader) {
+        proxyUrl.searchParams.set('apiKey', apiKey);
+        proxyUrl.searchParams.set('apiKeyHeader', apiKeyHeader);
+      }
+      finalUrl = proxyUrl.toString();
+    }
+
+    // Build headers object (only for direct requests, not proxy)
     const headers: Record<string, string> = {};
     
-    // Add API key to header if provided (for APIs like Indian Stock API that require x-api-key header)
-    if (apiKey && apiKeyHeader) {
-      headers[apiKeyHeader] = apiKey;
+    if (!useProxy) {
+      // Check if URL already contains authentication in query params (like token=, apikey=, etc.)
+      // If so, don't add headers to avoid CORS issues
+      const urlHasAuth = url.includes('token=') || 
+                        url.includes('apikey=') || 
+                        url.includes('api_key=') || 
+                        url.includes('key=');
+      
+      // Only add API key to header if:
+      // 1. Both apiKey and apiKeyHeader are provided AND non-empty
+      // 2. URL doesn't already have auth in query params (to avoid CORS issues)
+      if (apiKey && apiKeyHeader && apiKey.trim() && apiKeyHeader.trim() && !urlHasAuth) {
+        headers[apiKeyHeader] = apiKey;
+      }
     }
     
     // For GET requests, don't send Content-Type header to avoid CORS issues
     // Many APIs (like Finnhub) don't allow custom headers in CORS preflight
-    const response = await fetch(url, {
+    response = await fetch(finalUrl, {
       method: 'GET',
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      headers: !useProxy && Object.keys(headers).length > 0 ? headers : undefined,
       // Removed Content-Type header to fix CORS issues with Finnhub and other APIs
       // GET requests don't need Content-Type header
     });
@@ -70,9 +97,11 @@ export async function fetchApiData(
       // Try to get error message from response body
       let errorMessage = `HTTP error! status: ${response.status}`;
       let resetTime: number | null = null;
+      let errorDetails: any = null;
       
       try {
         const errorData = await response.json();
+        errorDetails = errorData;
         // Extract error message from various possible formats
         errorMessage = 
           errorData.error || 
@@ -80,6 +109,7 @@ export async function fetchApiData(
           errorData['Error Message'] || 
           errorData.error_message ||
           errorData.msg ||
+          errorData.description ||
           (typeof errorData === 'string' ? errorData : errorMessage);
         
         // Check for rate limit reset time in response headers or body
@@ -88,8 +118,13 @@ export async function fetchApiData(
           resetTime = Date.now() + (parseInt(String(retryAfter)) * 1000);
         }
       } catch {
-        // If response is not JSON, use status text
-        errorMessage = response.statusText || errorMessage;
+        // If response is not JSON, try to get text
+        try {
+          const text = await response.text();
+          errorMessage = text || response.statusText || errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
       }
 
       // Handle specific error cases
@@ -117,7 +152,19 @@ export async function fetchApiData(
       }
       
       if (response.status === 401 || response.status === 403) {
-        throw new Error('Invalid API key or unauthorized access.');
+        // Build a more helpful error message
+        let specificError = errorMessage;
+        
+        // Check if it's a Finnhub API
+        const isFinnhub = url.includes('finnhub.io');
+        
+        if (isFinnhub && response.status === 403) {
+          specificError = `Finnhub API returned 403 Forbidden. This usually means:\n\n1. Your API key might be invalid or expired\n2. The endpoint requires a paid plan (candle data often requires a subscription)\n3. You've exceeded your API rate limit\n\nTry:\n- Verify your API key at https://finnhub.io/\n- Test with a simpler endpoint like /quote first\n- Check if your plan includes this endpoint\n\nOriginal error: ${errorMessage}`;
+        } else {
+          specificError = `API returned ${response.status}: ${errorMessage}\n\nPossible causes:\n- Invalid or expired API key\n- Insufficient permissions for this endpoint\n- Rate limit exceeded\n- Endpoint requires a paid subscription\n\nPlease check your API key and endpoint requirements.`;
+        }
+        
+        throw new Error(specificError);
       }
       
       if (response.status === 400) {
@@ -128,13 +175,39 @@ export async function fetchApiData(
       if (response.status >= 500 && retryCount < maxRetries) {
         const backoffDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
         await new Promise((resolve) => setTimeout(resolve, backoffDelay));
-        return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries);
+        return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries, useProxy);
       }
       
       throw new Error(errorMessage);
     }
 
-    const data = await response.json();
+    let data: any;
+    try {
+      data = await response.json();
+    } catch (jsonError) {
+      // If response is not JSON, try to get text
+      const text = await response.text();
+      throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+    }
+    
+    // Handle proxy response format
+    if (useProxy) {
+      // Proxy returns { data: ... } or { error: ... }
+      if (data.error) {
+        throw new Error(data.error || 'Proxy request failed');
+      }
+      if (data.data) {
+        return {
+          data: data.data,
+          timestamp: Date.now(),
+        };
+      }
+      // If proxy returns data directly (shouldn't happen, but handle it)
+      return {
+        data: data,
+        timestamp: Date.now(),
+      };
+    }
     
     // Check for API-specific error responses
     if (data.error || data['Error Message']) {
@@ -146,13 +219,35 @@ export async function fetchApiData(
       timestamp: Date.now(),
     };
   } catch (error) {
-    // Handle CORS errors specifically
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      return {
-        data: null,
-        error: 'CORS error: Unable to fetch data. The API may not allow requests from this origin.',
-        timestamp: Date.now(),
-      };
+    // Handle CORS errors specifically - retry with proxy if not already tried
+    if (error instanceof TypeError && error.message.includes('fetch') && !useProxy) {
+      // Try again with proxy
+      try {
+        const proxyUrl = new URL('/api/proxy', window.location.origin);
+        proxyUrl.searchParams.set('url', url);
+        if (apiKey && apiKeyHeader) {
+          proxyUrl.searchParams.set('apiKey', apiKey);
+          proxyUrl.searchParams.set('apiKeyHeader', apiKeyHeader);
+        }
+        
+        const proxyResponse = await fetch(proxyUrl.toString());
+        if (!proxyResponse.ok) {
+          const errorData = await proxyResponse.json();
+          throw new Error(errorData.error || 'Proxy request failed');
+        }
+        
+        const proxyData = await proxyResponse.json();
+        return {
+          data: proxyData.data,
+          timestamp: Date.now(),
+        };
+      } catch (proxyError) {
+        return {
+          data: null,
+          error: 'CORS error: Unable to fetch data. The API may not allow requests from this origin. Try using a different API or check if the API supports CORS.',
+          timestamp: Date.now(),
+        };
+      }
     }
     
     return {

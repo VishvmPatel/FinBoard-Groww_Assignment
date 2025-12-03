@@ -27,10 +27,32 @@ export function useWidgetData(widget: WidgetConfig) {
     setLoading(true);
     setError(null);
     
+    // Check if URL already has authentication in query params (like token=, apikey=, etc.)
+    // If so, don't use header-based auth to avoid CORS issues
+    const urlHasAuth = widget.apiUrl.includes('token=') || 
+                      widget.apiUrl.includes('apikey=') || 
+                      widget.apiUrl.includes('api_key=') || 
+                      widget.apiUrl.includes('key=');
+    
+    // Only use header-based auth if:
+    // 1. Both apiKey and apiKeyHeader are provided AND non-empty
+    // 2. URL doesn't already have auth in query params
+    const keyToUse = !urlHasAuth && widget.apiKey?.trim() && widget.apiKeyHeader?.trim() 
+      ? widget.apiKey.trim() 
+      : undefined;
+    const headerToUse = !urlHasAuth && widget.apiKey?.trim() && widget.apiKeyHeader?.trim() 
+      ? widget.apiKeyHeader.trim() 
+      : undefined;
+    
+    // Try direct request first (many APIs work fine with browser requests)
+    // fetchApiData will automatically fall back to proxy if CORS fails
     const response = await fetchApiData(
       widget.apiUrl,
-      widget.apiKey,
-      widget.apiKeyHeader
+      keyToUse,
+      headerToUse,
+      0, // retryCount
+      3, // maxRetries
+      false // Don't force proxy - try direct first, fallback to proxy on CORS
     );
     
     if (response.error) {

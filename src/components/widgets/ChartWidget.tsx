@@ -40,7 +40,14 @@ export default function ChartWidget({ widget }: ChartWidgetProps) {
       };
       
       const foundArray = findArray(data);
-      if (foundArray) arrayData = foundArray;
+      if (foundArray) {
+        arrayData = foundArray;
+      } else {
+        // If no array found, treat the data itself as a single data point
+        // This is useful for APIs that return single objects (like quote endpoints)
+        // We'll create a single-point chart or show a message
+        arrayData = [data];
+      }
     }
 
     // Transform array data for chart
@@ -80,6 +87,44 @@ export default function ChartWidget({ widget }: ChartWidgetProps) {
     return (
       <div className="text-center py-8">
         <p className="text-dark-muted text-sm">No data available for chart</p>
+        <p className="text-dark-muted text-xs mt-2">
+          Line charts require time-series data (an array). Your API returned a single object.
+        </p>
+      </div>
+    );
+  }
+
+  // Check if we only have one data point (single object response)
+  const hasOnlyOnePoint = chartData.length === 1;
+  
+  if (hasOnlyOnePoint) {
+    return (
+      <div className="text-center py-8">
+        <div className="mb-4">
+          <p className="text-dark-muted text-sm mb-2">
+            Line charts work best with time-series data (multiple data points over time).
+          </p>
+          <p className="text-dark-muted text-xs mb-4">
+            Your API returned a single data point. Here are the current values:
+          </p>
+          <div className="grid grid-cols-2 gap-2 text-left max-w-md mx-auto">
+            {widget.selectedFields.map((field) => {
+              const displayName = field.displayName || field.path.split('.').pop() || field.path;
+              const value = chartData[0][displayName];
+              return (
+                <div key={field.path} className="bg-dark-bg p-2 rounded">
+                  <div className="text-xs text-dark-muted">{displayName}</div>
+                  <div className="text-sm text-dark-text font-semibold">
+                    {typeof value === 'number' ? value.toLocaleString() : String(value)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <p className="text-dark-muted text-xs">
+          💡 Tip: For line charts, use an endpoint that returns historical data (e.g., /candle endpoint with time range)
+        </p>
       </div>
     );
   }
