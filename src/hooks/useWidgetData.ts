@@ -9,8 +9,10 @@ export function useWidgetData(widget: WidgetConfig) {
   const [error, setError] = useState<string | null>(null);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitResetTime, setRateLimitResetTime] = useState<number | null>(null);
+  const [fromCache, setFromCache] = useState(false);
+  const [cacheAge, setCacheAge] = useState<number | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bypassCache = false) => {
     // Don't fetch if rate limited
     if (isRateLimited && rateLimitResetTime) {
       const now = Date.now();
@@ -27,6 +29,8 @@ export function useWidgetData(widget: WidgetConfig) {
 
     setLoading(true);
     setError(null);
+    setFromCache(false);
+    setCacheAge(null);
     
     // Build the API URL with time interval if chart mode is selected
     let apiUrl = widget.apiUrl;
@@ -51,6 +55,9 @@ export function useWidgetData(widget: WidgetConfig) {
       ? widget.apiKeyHeader.trim() 
       : undefined;
     
+    // Get cache TTL from widget config (default: 30 seconds)
+    const cacheTTL = widget.cacheTTL ?? 30;
+    
     // Try direct request first (many APIs work fine with browser requests)
     // fetchApiData will automatically fall back to proxy if CORS fails
     const response = await fetchApiData(
@@ -59,7 +66,9 @@ export function useWidgetData(widget: WidgetConfig) {
       headerToUse,
       0, // retryCount
       3, // maxRetries
-      false // Don't force proxy - try direct first, fallback to proxy on CORS
+      false, // Don't force proxy - try direct first, fallback to proxy on CORS
+      cacheTTL, // Cache TTL
+      bypassCache // Bypass cache for manual refresh
     );
     
     if (response.error) {
@@ -84,11 +93,13 @@ export function useWidgetData(widget: WidgetConfig) {
       setData(response);
       setIsRateLimited(false);
       setRateLimitResetTime(null);
-      console.log(`[Widget ${widget.id}] Data fetched:`, response.data);
+      setFromCache(response.fromCache || false);
+      setCacheAge(response.cacheAge || null);
+      console.log(`[Widget ${widget.id}] Data fetched${response.fromCache ? ' (from cache)' : ''}:`, response.data);
     }
     
     setLoading(false);
-  }, [widget.apiUrl, widget.apiKey, widget.apiKeyHeader, widget.id, widget.displayMode, widget.timeInterval, isRateLimited, rateLimitResetTime]);
+  }, [widget.apiUrl, widget.apiKey, widget.apiKeyHeader, widget.id, widget.displayMode, widget.timeInterval, widget.cacheTTL, isRateLimited, rateLimitResetTime]);
 
   useEffect(() => {
     fetchData();
@@ -119,8 +130,10 @@ export function useWidgetData(widget: WidgetConfig) {
     loading,
     error,
     lastUpdated: data?.timestamp,
-    refresh: fetchData,
+    refresh: () => fetchData(true), // Manual refresh bypasses cache
     getFieldValue,
+    fromCache,
+    cacheAge,
   };
 }
 

@@ -1,4 +1,11 @@
 import { ApiResponse, FieldMapping } from '@/types';
+import {
+  generateCacheKey,
+  getCachedData,
+  setCachedData,
+  invalidateCache,
+  getCacheAge,
+} from './cache';
 
 // Rate limit tracking
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
@@ -36,9 +43,27 @@ export async function fetchApiData(
   apiKeyHeader?: string,
   retryCount = 0,
   maxRetries = 3,
-  useProxy = false
-): Promise<ApiResponse> {
+  useProxy = false,
+  cacheTTL?: number, // Cache time-to-live in seconds
+  bypassCache = false // Force refresh, bypass cache
+): Promise<ApiResponse & { fromCache?: boolean; cacheAge?: number }> {
   try {
+    // Check cache first (unless bypassing)
+    if (!bypassCache && cacheTTL !== undefined && cacheTTL > 0) {
+      const cacheKey = generateCacheKey(url, apiKey);
+      const cachedEntry = getCachedData(cacheKey);
+      
+      if (cachedEntry) {
+        const cacheAge = getCacheAge(cacheKey);
+        return {
+          data: cachedEntry.data,
+          timestamp: cachedEntry.timestamp,
+          fromCache: true,
+          cacheAge: cacheAge || 0,
+        };
+      }
+    }
+    
     // Check rate limit before making request
     const rateLimitCheck = checkRateLimit(url);
     if (rateLimitCheck.limited) {
@@ -144,7 +169,7 @@ export async function fetchApiData(
         if (retryCount < maxRetries && resetTime) {
           const waitTime = Math.min((resetTime - Date.now()) / 1000, 60); // Max 60 seconds
           await new Promise((resolve) => setTimeout(resolve, waitTime * 1000));
-          return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries);
+          return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries, useProxy, cacheTTL, bypassCache);
         }
         
         const waitTime = resetTime ? Math.ceil((resetTime - Date.now()) / 1000) : 60;
@@ -175,7 +200,7 @@ export async function fetchApiData(
       if (response.status >= 500 && retryCount < maxRetries) {
         const backoffDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
         await new Promise((resolve) => setTimeout(resolve, backoffDelay));
-        return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries, useProxy);
+        return fetchApiData(url, apiKey, apiKeyHeader, retryCount + 1, maxRetries, useProxy, cacheTTL, bypassCache);
       }
       
       throw new Error(errorMessage);
@@ -194,19 +219,40 @@ export async function fetchApiData(
     if (useProxy) {
       // Proxy returns { data: ... } or { error: ... }
       if (data.error) {
+        // Invalidate cache on error
+        if (cacheTTL !== undefined && cacheTTL > 0) {
+          const cacheKey = generateCacheKey(url, apiKey);
+          invalidateCache(cacheKey);
+        }
         throw new Error(data.error || 'Proxy request failed');
       }
       if (data.data) {
-        return {
+        const proxyResponse: ApiResponse & { fromCache?: boolean; cacheAge?: number } = {
           data: data.data,
           timestamp: Date.now(),
         };
+        
+        // Store in cache if TTL is provided
+        if (cacheTTL !== undefined && cacheTTL > 0) {
+          const cacheKey = generateCacheKey(url, apiKey);
+          setCachedData(cacheKey, data.data, cacheTTL, url);
+        }
+        
+        return proxyResponse;
       }
       // If proxy returns data directly (shouldn't happen, but handle it)
-      return {
+      const directResponse: ApiResponse & { fromCache?: boolean; cacheAge?: number } = {
         data: data,
         timestamp: Date.now(),
       };
+      
+      // Store in cache if TTL is provided
+      if (cacheTTL !== undefined && cacheTTL > 0) {
+        const cacheKey = generateCacheKey(url, apiKey);
+        setCachedData(cacheKey, data, cacheTTL, url);
+      }
+      
+      return directResponse;
     }
     
     // Check for API-specific error responses
@@ -243,10 +289,18 @@ export async function fetchApiData(
       throw new Error(errorMsg);
     }
     
-    return {
+    const apiResponse: ApiResponse & { fromCache?: boolean; cacheAge?: number } = {
       data,
       timestamp: Date.now(),
     };
+    
+    // Store in cache if TTL is provided
+    if (cacheTTL !== undefined && cacheTTL > 0) {
+      const cacheKey = generateCacheKey(url, apiKey);
+      setCachedData(cacheKey, data, cacheTTL, url);
+    }
+    
+    return apiResponse;
   } catch (error) {
     // Handle CORS errors specifically - retry with proxy if not already tried
     if (error instanceof TypeError && error.message.includes('fetch') && !useProxy) {
@@ -259,17 +313,30 @@ export async function fetchApiData(
           proxyUrl.searchParams.set('apiKeyHeader', apiKeyHeader);
         }
         
-        const proxyResponse = await fetch(proxyUrl.toString());
-        if (!proxyResponse.ok) {
-          const errorData = await proxyResponse.json();
+        const proxyFetchResponse = await fetch(proxyUrl.toString());
+        if (!proxyFetchResponse.ok) {
+          const errorData = await proxyFetchResponse.json();
+          // Invalidate cache on error
+          if (cacheTTL !== undefined && cacheTTL > 0) {
+            const cacheKey = generateCacheKey(url, apiKey);
+            invalidateCache(cacheKey);
+          }
           throw new Error(errorData.error || 'Proxy request failed');
         }
         
-        const proxyData = await proxyResponse.json();
-        return {
+        const proxyData = await proxyFetchResponse.json();
+        const proxyApiResponse: ApiResponse & { fromCache?: boolean; cacheAge?: number } = {
           data: proxyData.data,
           timestamp: Date.now(),
         };
+        
+        // Store in cache if TTL is provided
+        if (cacheTTL !== undefined && cacheTTL > 0) {
+          const cacheKey = generateCacheKey(url, apiKey);
+          setCachedData(cacheKey, proxyData.data, cacheTTL, url);
+        }
+        
+        return proxyApiResponse;
       } catch (proxyError) {
         return {
           data: null,
@@ -279,11 +346,17 @@ export async function fetchApiData(
       }
     }
     
-    return {
-      data: null,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-      timestamp: Date.now(),
-    };
+        // Invalidate cache on error to avoid serving stale data
+        if (cacheTTL !== undefined && cacheTTL > 0) {
+          const cacheKey = generateCacheKey(url, apiKey);
+          invalidateCache(cacheKey);
+        }
+        
+        return {
+          data: null,
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
+          timestamp: Date.now(),
+        };
   }
 }
 

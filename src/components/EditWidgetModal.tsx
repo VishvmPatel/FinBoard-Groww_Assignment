@@ -19,6 +19,7 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
   const [apiKey, setApiKey] = useState('');
   const [apiKeyHeader, setApiKeyHeader] = useState('x-api-key');
   const [refreshInterval, setRefreshInterval] = useState(30);
+  const [cacheTTL, setCacheTTL] = useState(30);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('card');
   const [chartType, setChartType] = useState<ChartType>('line');
   const [timeInterval, setTimeInterval] = useState<TimeInterval>('daily');
@@ -134,6 +135,7 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
       apiKey: keyToUse || undefined,
       apiKeyHeader: keyToUse ? headerToUse : undefined,
       refreshInterval,
+      cacheTTL,
       displayMode,
       chartType: displayMode === 'chart' ? chartType : undefined,
       timeInterval: displayMode === 'chart' ? timeInterval : undefined,
@@ -243,6 +245,26 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
               min="0"
               className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
             />
+            <p className="mt-1 text-xs text-dark-muted">
+              How often to automatically refresh data (0 = disabled)
+            </p>
+          </div>
+
+          {/* Cache TTL */}
+          <div>
+            <label className="block text-sm font-medium text-dark-text mb-2">
+              Cache Duration (seconds)
+            </label>
+            <input
+              type="number"
+              value={cacheTTL}
+              onChange={(e) => setCacheTTL(Math.max(0, parseInt(e.target.value) || 30))}
+              min="0"
+              className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
+            />
+            <p className="mt-1 text-xs text-dark-muted">
+              How long to cache API responses (0 = disabled, default: 30s). Reduces redundant API calls.
+            </p>
           </div>
 
           {/* Chart Type Selector (only for chart mode) */}

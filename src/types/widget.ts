@@ -21,6 +21,7 @@ export interface WidgetConfig {
   apiKey?: string; // API key for header-based authentication
   apiKeyHeader?: string; // Header name for API key (e.g., 'x-api-key')
   refreshInterval: number; // in seconds
+  cacheTTL?: number; // Cache time-to-live in seconds (default: 30)
   displayMode: DisplayMode;
   selectedFields: WidgetField[];
   chartType?: ChartType;

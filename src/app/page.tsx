@@ -319,7 +319,7 @@ function WidgetWrapper({
   onRemove: (id: string) => void;
   onEdit: (id: string) => void;
 }) {
-  const { loading, error, lastUpdated, refresh } = useWidgetData(widget);
+  const { loading, error, lastUpdated, refresh, fromCache, cacheAge } = useWidgetData(widget);
 
   return (
     <WidgetContainer
@@ -329,6 +329,8 @@ function WidgetWrapper({
       onSettings={onEdit}
       loading={loading}
       lastUpdated={lastUpdated}
+      fromCache={fromCache}
+      cacheAge={cacheAge}
     >
       <WidgetRenderer widget={widget} />
     </WidgetContainer>
