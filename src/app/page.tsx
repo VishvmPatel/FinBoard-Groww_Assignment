@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, BarChart3, Download, Upload } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { addWidget, removeWidget, updateWidget, updateWidgetLayout, setWidgets } from '@/store/slices/widgetsSlice';
 import { WidgetConfig } from '@/types';
@@ -333,9 +334,10 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <button
               onClick={handleExport}
-              className="px-4 py-2 bg-dark-bg hover:bg-dark-border text-dark-text rounded-lg font-medium transition-colors flex items-center gap-2 border border-dark-border"
+              className="px-4 py-2 bg-theme-bg hover:bg-theme-border text-theme-text rounded-lg font-medium transition-colors flex items-center gap-2 border border-theme-border"
               title="Export Dashboard"
             >
               <Download className="w-4 h-4" />
@@ -343,7 +345,7 @@ export default function Dashboard() {
             </button>
             <button
               onClick={handleImport}
-              className="px-4 py-2 bg-dark-bg hover:bg-dark-border text-dark-text rounded-lg font-medium transition-colors flex items-center gap-2 border border-dark-border"
+              className="px-4 py-2 bg-theme-bg hover:bg-theme-border text-theme-text rounded-lg font-medium transition-colors flex items-center gap-2 border border-theme-border"
               title="Import Dashboard"
             >
               <Upload className="w-4 h-4" />
