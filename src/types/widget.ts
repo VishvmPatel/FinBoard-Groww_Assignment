@@ -17,6 +17,7 @@ export interface WidgetField {
 export interface WidgetConfig {
   id: string;
   name: string;
+  description?: string; // Optional description for the widget
   apiUrl: string;
   apiKey?: string; // API key for header-based authentication
   apiKeyHeader?: string; // Header name for API key (e.g., 'x-api-key')

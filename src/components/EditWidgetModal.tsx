@@ -15,6 +15,7 @@ interface EditWidgetModalProps {
 
 export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: EditWidgetModalProps) {
   const [widgetName, setWidgetName] = useState('');
+  const [widgetDescription, setWidgetDescription] = useState('');
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [apiKeyHeader, setApiKeyHeader] = useState('x-api-key');
@@ -33,6 +34,7 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
   useEffect(() => {
     if (widget && isOpen) {
       setWidgetName(widget.name);
+      setWidgetDescription(widget.description || '');
       setApiUrl(widget.apiUrl);
       setApiKey(widget.apiKey || '');
       setApiKeyHeader(widget.apiKeyHeader || 'x-api-key');
@@ -130,6 +132,7 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
 
     onSave(widget.id, {
       name: widgetName,
+      description: widgetDescription.trim() || undefined,
       apiUrl,
       apiKey: keyToUse || undefined,
       apiKeyHeader: keyToUse ? headerToUse : undefined,
@@ -173,6 +176,23 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
               placeholder="e.g., Bitcoin Price Tracker"
               className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
             />
+          </div>
+
+          {/* Widget Description */}
+          <div>
+            <label className="block text-sm font-medium text-dark-text mb-2">
+              Description (Optional)
+            </label>
+            <textarea
+              value={widgetDescription}
+              onChange={(e) => setWidgetDescription(e.target.value)}
+              placeholder="e.g., Tracks real-time Bitcoin price from CoinGecko API"
+              rows={3}
+              className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary resize-none"
+            />
+            <p className="mt-1 text-xs text-dark-muted">
+              Add a description to help identify this widget's purpose
+            </p>
           </div>
 
           {/* API URL */}

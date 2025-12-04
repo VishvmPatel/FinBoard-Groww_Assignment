@@ -40,9 +40,16 @@ export default function WidgetContainer({
     <div className="bg-dark-card rounded-lg border border-dark-border p-4 h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 drag-handle cursor-move flex-1">
-          <h3 className="text-dark-text font-semibold text-lg">{widget.name}</h3>
-          <span className="text-xs text-dark-muted bg-dark-bg px-2 py-1 rounded">
+        <div className="flex items-center gap-2 drag-handle cursor-move flex-1 min-w-0">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-dark-text font-semibold text-lg truncate">{widget.name}</h3>
+            {widget.description && (
+              <p className="text-xs text-dark-muted mt-0.5 line-clamp-1" title={widget.description}>
+                {widget.description}
+              </p>
+            )}
+          </div>
+          <span className="text-xs text-dark-muted bg-dark-bg px-2 py-1 rounded flex-shrink-0">
             {widget.refreshInterval}s
           </span>
         </div>

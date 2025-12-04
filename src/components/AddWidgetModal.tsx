@@ -17,6 +17,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
   const [selectedTemplate, setSelectedTemplate] = useState<string>('custom');
   const [showTemplateSelector, setShowTemplateSelector] = useState(true);
   const [widgetName, setWidgetName] = useState('');
+  const [widgetDescription, setWidgetDescription] = useState('');
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [apiKeyHeader, setApiKeyHeader] = useState('x-api-key');
@@ -38,6 +39,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       const template = WIDGET_TEMPLATES.find((t) => t.id === selectedTemplate);
       if (template) {
         setWidgetName(template.name);
+        setWidgetDescription(template.description || '');
         setDisplayMode(template.displayMode);
         if (template.chartType) setChartType(template.chartType);
         if (template.timeInterval) setTimeInterval(template.timeInterval);
@@ -54,10 +56,11 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
           setRefreshInterval(template.refreshInterval);
         }
       }
-    } else if (selectedTemplate === 'custom') {
-      // Reset to defaults for custom template
-      setWidgetName('');
-      setApiUrl('');
+      } else if (selectedTemplate === 'custom') {
+        // Reset to defaults for custom template
+        setWidgetName('');
+        setWidgetDescription('');
+        setApiUrl('');
       setDisplayMode('card');
       setChartType('line');
       setTimeInterval('daily');
@@ -72,6 +75,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       setSelectedTemplate('custom');
       setShowTemplateSelector(true);
       setWidgetName('');
+      setWidgetDescription('');
       setApiUrl('');
       setApiKey('');
       setApiKeyHeader('x-api-key');
@@ -174,6 +178,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
 
     onAdd({
       name: widgetName,
+      description: widgetDescription.trim() || undefined,
       apiUrl,
       apiKey: keyToUse || undefined,
       apiKeyHeader: keyToUse ? headerToUse : undefined,
@@ -343,6 +348,23 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
               placeholder="e.g., Bitcoin Price Tracker"
               className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary"
             />
+          </div>
+
+          {/* Widget Description */}
+          <div>
+            <label className="block text-sm font-medium text-dark-text mb-2">
+              Description (Optional)
+            </label>
+            <textarea
+              value={widgetDescription}
+              onChange={(e) => setWidgetDescription(e.target.value)}
+              placeholder="e.g., Tracks real-time Bitcoin price from CoinGecko API"
+              rows={3}
+              className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary resize-none"
+            />
+            <p className="mt-1 text-xs text-dark-muted">
+              Add a description to help identify this widget's purpose
+            </p>
           </div>
 
           {/* API URL */}
