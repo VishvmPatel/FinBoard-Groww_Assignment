@@ -53,3 +53,21 @@ export interface DashboardState {
   widgets: WidgetConfig[];
   layout: Record<string, { x: number; y: number; w: number; h: number }>;
 }
+
+// Dashboard export/import configuration
+export interface DashboardExport {
+  version: string;
+  exportDate: string;
+  widgets: WidgetConfig[];
+  layouts?: {
+    lg?: Record<string, { x: number; y: number; w: number; h: number }>;
+    md?: Record<string, { x: number; y: number; w: number; h: number }>;
+    sm?: Record<string, { x: number; y: number; w: number; h: number }>;
+    xs?: Record<string, { x: number; y: number; w: number; h: number }>;
+    xxs?: Record<string, { x: number; y: number; w: number; h: number }>;
+  };
+  metadata?: {
+    widgetCount: number;
+    layoutBreakpoints?: string[];
+  };
+}

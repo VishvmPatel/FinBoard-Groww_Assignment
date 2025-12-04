@@ -14,6 +14,7 @@ import {
   convertLayoutsToStorageFormat,
   convertStorageFormatToLayouts,
   type BreakpointLayouts,
+  type ImportValidationResult,
 } from '@/utils/persistence';
 import AddWidgetModal from '@/components/AddWidgetModal';
 import EditWidgetModal from '@/components/EditWidgetModal';
@@ -120,31 +121,78 @@ export default function Dashboard() {
       reader.onload = (event) => {
         try {
           const jsonString = event.target?.result as string;
-          const importedWidgets = importDashboardConfig(jsonString);
+          const importResult: ImportValidationResult = importDashboardConfig(jsonString);
           
-          if (importedWidgets) {
-            // Validate imported widgets
-            const validWidgets = importedWidgets.filter((w) => 
-              w.id && w.name && w.apiUrl && w.selectedFields && Array.isArray(w.selectedFields)
-            );
-            
-            if (validWidgets.length === 0) {
-              setImportError('Invalid dashboard configuration file. No valid widgets found.');
-              setImportSuccess(false);
-              return;
-            }
-
-            // Replace current widgets with imported ones
-            dispatch(setWidgets(validWidgets));
-            setImportSuccess(true);
-            setImportError(null);
-            
-            // Clear success message after 3 seconds
-            setTimeout(() => setImportSuccess(false), 3000);
-          } else {
-            setImportError('Failed to parse dashboard configuration file.');
+          if (!importResult.valid || !importResult.widgets || importResult.widgets.length === 0) {
+            // Build detailed error message
+            const errorMessages = importResult.errors.length > 0
+              ? importResult.errors.join('\n')
+              : 'Invalid dashboard configuration file. No valid widgets found.';
+            setImportError(errorMessages);
             setImportSuccess(false);
+            return;
           }
+
+          // Replace current widgets with imported ones
+          dispatch(setWidgets(importResult.widgets));
+          
+          // Restore layouts if present and valid
+          if (importResult.layouts && Object.keys(importResult.layouts).length > 0) {
+            // Filter out invalid layouts (widgets that don't exist)
+            const widgetIds = importResult.widgets.map((w) => w.id);
+            const validLayouts: BreakpointLayouts = {};
+            
+            const breakpoints: Array<keyof BreakpointLayouts> = ['lg', 'md', 'sm', 'xs', 'xxs'];
+            for (const breakpoint of breakpoints) {
+              if (importResult.layouts[breakpoint]) {
+                const layout = importResult.layouts[breakpoint]!;
+                const validLayout: Record<string, { x: number; y: number; w: number; h: number }> = {};
+                
+                for (const [widgetId, layoutData] of Object.entries(layout)) {
+                  if (widgetIds.includes(widgetId)) {
+                    // Validate coordinates one more time
+                    const { x, y, w, h } = layoutData;
+                    if (
+                      typeof x === 'number' && x >= 0 &&
+                      typeof y === 'number' && y >= 0 &&
+                      typeof w === 'number' && w > 0 &&
+                      typeof h === 'number' && h > 0
+                    ) {
+                      validLayout[widgetId] = layoutData;
+                    }
+                  }
+                }
+                
+                if (Object.keys(validLayout).length > 0) {
+                  validLayouts[breakpoint] = validLayout;
+                }
+              }
+            }
+            
+            // Save valid layouts to storage
+            if (Object.keys(validLayouts).length > 0) {
+              saveResponsiveLayoutsToStorage(validLayouts);
+              console.log('[Dashboard] Restored responsive layouts from import:', Object.keys(validLayouts));
+            }
+          }
+          
+          // Build success/warning message
+          const messages: string[] = [];
+          if (importResult.warnings.length > 0) {
+            messages.push(...importResult.warnings);
+          }
+          messages.push(`Successfully imported ${importResult.widgets.length} widget(s).`);
+          
+          // Show warnings if any
+          if (importResult.warnings.length > 0) {
+            console.warn('[Dashboard] Import warnings:', importResult.warnings);
+          }
+          
+          setImportSuccess(true);
+          setImportError(null);
+          
+          // Clear success message after 5 seconds (longer if there are warnings)
+          setTimeout(() => setImportSuccess(false), importResult.warnings.length > 0 ? 5000 : 3000);
         } catch (error) {
           setImportError('Error reading file: ' + (error instanceof Error ? error.message : 'Unknown error'));
           setImportSuccess(false);

@@ -1,4 +1,4 @@
-import { WidgetConfig } from '@/types';
+import { WidgetConfig, DashboardExport } from '@/types';
 
 const STORAGE_KEY = 'finboard-widgets';
 const LAYOUT_KEY = 'finboard-layout';
@@ -218,19 +218,232 @@ function calculateDefaultLayout(
   };
 }
 
+
+/**
+ * Export complete dashboard configuration including widgets and responsive layouts
+ */
 export function exportDashboardConfig(widgets: WidgetConfig[]): string {
-  return JSON.stringify(widgets, null, 2);
+  // Load responsive layouts from storage
+  const responsiveLayouts = loadResponsiveLayoutsFromStorage();
+  
+  // Build complete dashboard export object
+  const dashboardExport: DashboardExport = {
+    version: '1.0.0',
+    exportDate: new Date().toISOString(),
+    widgets: widgets.map((w) => ({
+      ...w,
+      createdAt: w.createdAt,
+      lastUpdated: w.lastUpdated,
+    })),
+    layouts: responsiveLayouts,
+    metadata: {
+      widgetCount: widgets.length,
+      layoutBreakpoints: Object.keys(responsiveLayouts),
+    },
+  };
+  
+  return JSON.stringify(dashboardExport, null, 2);
 }
 
-export function importDashboardConfig(jsonString: string): WidgetConfig[] | null {
+/**
+ * Validation result for imported dashboard configuration
+ */
+export interface ImportValidationResult {
+  valid: boolean;
+  widgets?: WidgetConfig[];
+  layouts?: BreakpointLayouts;
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Validate layout structure and coordinates
+ */
+function validateLayoutStructure(
+  layouts: BreakpointLayouts,
+  widgetIds: string[],
+  breakpoint: keyof BreakpointLayouts,
+  cols: number
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const layout = layouts[breakpoint];
+  
+  if (!layout) {
+    return { valid: true, errors: [] }; // Missing layout is OK (optional)
+  }
+  
+  // Validate each widget layout
+  for (const [widgetId, layoutData] of Object.entries(layout)) {
+    // Check if widget ID exists in widgets
+    if (!widgetIds.includes(widgetId)) {
+      errors.push(`Layout ${breakpoint}: Widget ID "${widgetId}" not found in widgets`);
+      continue;
+    }
+    
+    // Validate coordinates
+    const { x, y, w, h } = layoutData;
+    
+    if (typeof x !== 'number' || x < 0) {
+      errors.push(`Layout ${breakpoint}: Widget "${widgetId}" has invalid x coordinate: ${x}`);
+    }
+    
+    if (typeof y !== 'number' || y < 0) {
+      errors.push(`Layout ${breakpoint}: Widget "${widgetId}" has invalid y coordinate: ${y}`);
+    }
+    
+    if (typeof w !== 'number' || w <= 0 || w > cols) {
+      errors.push(`Layout ${breakpoint}: Widget "${widgetId}" has invalid width: ${w} (max: ${cols})`);
+    }
+    
+    if (typeof h !== 'number' || h <= 0) {
+      errors.push(`Layout ${breakpoint}: Widget "${widgetId}" has invalid height: ${h}`);
+    }
+    
+    // Check if widget fits within grid
+    if (x + w > cols) {
+      errors.push(`Layout ${breakpoint}: Widget "${widgetId}" extends beyond grid (x: ${x}, w: ${w}, cols: ${cols})`);
+    }
+  }
+  
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validate all layouts for all breakpoints
+ */
+function validateAllLayouts(
+  layouts: BreakpointLayouts | undefined,
+  widgetIds: string[]
+): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  if (!layouts || Object.keys(layouts).length === 0) {
+    warnings.push('No layouts found in import. Layouts will be generated automatically.');
+    return { valid: true, errors, warnings };
+  }
+  
+  const breakpoints: Array<keyof BreakpointLayouts> = ['lg', 'md', 'sm', 'xs', 'xxs'];
+  const cols: Record<string, number> = {
+    lg: 12,
+    md: 10,
+    sm: 6,
+    xs: 4,
+    xxs: 2,
+  };
+  
+  for (const breakpoint of breakpoints) {
+    if (layouts[breakpoint]) {
+      const validation = validateLayoutStructure(layouts, widgetIds, breakpoint, cols[breakpoint]);
+      errors.push(...validation.errors);
+    }
+  }
+  
+  return { valid: errors.length === 0, errors, warnings };
+}
+
+/**
+ * Import dashboard configuration with validation
+ * Supports both old format (array of widgets) and new format (DashboardExport object)
+ */
+export function importDashboardConfig(jsonString: string): ImportValidationResult {
   try {
     const parsed = JSON.parse(jsonString);
+    
+    // Handle old format (array of widgets) for backward compatibility
     if (Array.isArray(parsed)) {
-      return parsed;
+      const widgets = parsed.filter((w) => 
+        w && typeof w === 'object' && w.id && w.name && w.apiUrl
+      );
+      
+      if (widgets.length === 0) {
+        return {
+          valid: false,
+          errors: ['No valid widgets found in import file'],
+          warnings: [],
+        };
+      }
+      
+      return {
+        valid: true,
+        widgets,
+        layouts: undefined, // No layouts in old format
+        errors: [],
+        warnings: ['Imported file uses old format (no layouts). Layouts will be generated automatically.'],
+      };
     }
-    return null;
+    
+    // Handle new format (DashboardExport object)
+    if (typeof parsed === 'object' && parsed !== null) {
+      const dashboardExport = parsed as Partial<DashboardExport>;
+      
+      // Validate widgets
+      if (!Array.isArray(dashboardExport.widgets)) {
+        return {
+          valid: false,
+          errors: ['Invalid dashboard configuration: widgets must be an array'],
+          warnings: [],
+        };
+      }
+      
+      const widgets = dashboardExport.widgets.filter((w) => 
+        w && typeof w === 'object' && w.id && w.name && w.apiUrl && Array.isArray(w.selectedFields)
+      );
+      
+      if (widgets.length === 0) {
+        return {
+          valid: false,
+          errors: ['No valid widgets found in import file'],
+          warnings: [],
+        };
+      }
+      
+      const widgetIds = widgets.map((w) => w.id);
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      
+      // Validate layouts if present
+      let layouts: BreakpointLayouts | undefined = undefined;
+      if (dashboardExport.layouts) {
+        layouts = dashboardExport.layouts as BreakpointLayouts;
+        const layoutValidation = validateAllLayouts(layouts, widgetIds);
+        errors.push(...layoutValidation.errors);
+        warnings.push(...layoutValidation.warnings);
+        
+        // If layouts have errors, we'll still import but warn the user
+        if (layoutValidation.errors.length > 0) {
+          warnings.push('Some layout data is invalid. Invalid layouts will be ignored and regenerated.');
+        }
+      } else {
+        warnings.push('No layouts found in import. Layouts will be generated automatically.');
+      }
+      
+      // Add metadata warnings if present
+      if (dashboardExport.metadata) {
+        if (dashboardExport.metadata.widgetCount !== widgets.length) {
+          warnings.push(`Metadata indicates ${dashboardExport.metadata.widgetCount} widgets, but ${widgets.length} valid widgets were found.`);
+        }
+      }
+      
+      return {
+        valid: errors.length === 0 || widgets.length > 0, // Valid if we have widgets, even if layouts have errors
+        widgets,
+        layouts,
+        errors,
+        warnings,
+      };
+    }
+    
+    return {
+      valid: false,
+      errors: ['Invalid dashboard configuration format'],
+      warnings: [],
+    };
   } catch (error) {
-    console.error('Failed to import dashboard config:', error);
-    return null;
+    return {
+      valid: false,
+      errors: [`Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`],
+      warnings: [],
+    };
   }
 }

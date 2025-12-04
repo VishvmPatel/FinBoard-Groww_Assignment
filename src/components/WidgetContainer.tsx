@@ -13,8 +13,6 @@ interface WidgetContainerProps {
   children: ReactNode;
   loading?: boolean;
   lastUpdated?: number;
-  fromCache?: boolean;
-  cacheAge?: number | null;
 }
 
 export default function WidgetContainer({
@@ -25,8 +23,6 @@ export default function WidgetContainer({
   children,
   loading,
   lastUpdated,
-  fromCache,
-  cacheAge,
 }: WidgetContainerProps) {
 
   const handleRemove = (e: React.MouseEvent) => {
@@ -89,20 +85,8 @@ export default function WidgetContainer({
 
       {/* Footer */}
       {lastUpdated && (
-        <div className="mt-4 pt-4 border-t border-dark-border text-xs text-dark-muted text-center space-y-1">
-          <div>
-            Last updated: {formatTime(lastUpdated)}
-          </div>
-          {fromCache && cacheAge !== null && (
-            <div className="flex items-center justify-center gap-2">
-              <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-[10px] font-medium">
-                Cached
-              </span>
-              <span className="text-[10px]">
-                ({cacheAge}s ago)
-              </span>
-            </div>
-          )}
+        <div className="mt-4 pt-4 border-t border-dark-border text-xs text-dark-muted text-center">
+          Last updated: {formatTime(lastUpdated)}
         </div>
       )}
     </div>
