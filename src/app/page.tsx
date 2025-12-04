@@ -7,7 +7,14 @@ import { addWidget, removeWidget, updateWidget, updateWidgetLayout, setWidgets }
 import { WidgetConfig } from '@/types';
 import { useLocalStoragePersistence } from '@/hooks/useLocalStorage';
 import { generateWidgetId } from '@/utils/helpers';
-import { loadLayoutFromStorage, exportDashboardConfig, importDashboardConfig } from '@/utils/persistence';
+import {
+  loadLayoutFromStorage,
+  loadResponsiveLayoutsFromStorage,
+  saveResponsiveLayoutsToStorage,
+  convertLayoutsToStorageFormat,
+  convertStorageFormatToLayouts,
+  type BreakpointLayouts,
+} from '@/utils/persistence';
 import AddWidgetModal from '@/components/AddWidgetModal';
 import EditWidgetModal from '@/components/EditWidgetModal';
 import WidgetContainer from '@/components/WidgetContainer';
@@ -31,19 +38,27 @@ export default function Dashboard() {
   // Initialize localStorage persistence
   useLocalStoragePersistence();
 
-  // Load and restore layout on mount
+  // Load and restore responsive layouts on mount
   useEffect(() => {
-    const savedLayout = loadLayoutFromStorage();
-    if (Object.keys(savedLayout).length > 0) {
-      // Restore layout for each widget
-      Object.entries(savedLayout).forEach(([id, layout]) => {
-        const widget = widgets.find((w) => w.id === id);
-        if (widget) {
-          dispatch(updateWidgetLayout({ id, layout }));
-        }
-      });
+    const savedResponsiveLayouts = loadResponsiveLayoutsFromStorage();
+    
+    if (Object.keys(savedResponsiveLayouts).length > 0) {
+      // We have responsive layouts saved - they will be used when generating layouts
+      console.log('[Dashboard] Loaded responsive layouts for breakpoints:', Object.keys(savedResponsiveLayouts));
+    } else {
+      // Fallback to legacy single layout format for backward compatibility
+      const savedLayout = loadLayoutFromStorage();
+      if (Object.keys(savedLayout).length > 0) {
+        // Migrate legacy layout to responsive format (apply to lg breakpoint)
+        const migratedLayouts: BreakpointLayouts = {
+          lg: savedLayout,
+        };
+        saveResponsiveLayoutsToStorage(migratedLayouts);
+        console.log('[Dashboard] Migrated legacy layout to responsive format');
+      }
     }
-  }, [dispatch]); // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const handleAddWidget = (widgetConfig: Omit<WidgetConfig, 'id' | 'createdAt' | 'lastUpdated'>) => {
     const newWidget: WidgetConfig = {
@@ -140,10 +155,16 @@ export default function Dashboard() {
     input.click();
   };
 
-  const handleLayoutChange = (layout: any[]) => {
+  const handleLayoutChange = (
+    currentLayout: any[],
+    allLayouts: Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>>
+  ) => {
+    // Update Redux state with current breakpoint layout (for backward compatibility)
+    // We'll use the 'lg' layout as the primary one stored in widget config
+    const lgLayout = allLayouts.lg || currentLayout;
     const layoutMap: Record<string, { x: number; y: number; w: number; h: number }> = {};
     
-    layout.forEach((item) => {
+    lgLayout.forEach((item) => {
       const layoutData = {
         x: item.x,
         y: item.y,
@@ -161,21 +182,93 @@ export default function Dashboard() {
       );
     });
     
-    // Save layout to localStorage
-    import('@/utils/persistence').then(({ saveLayoutToStorage }) => {
-      saveLayoutToStorage(layoutMap);
-    });
+    // Save all breakpoint layouts to localStorage
+    const storageFormat = convertLayoutsToStorageFormat(allLayouts);
+    saveResponsiveLayoutsToStorage(storageFormat);
+    console.log('[Dashboard] Saved responsive layouts for breakpoints:', Object.keys(allLayouts));
   };
 
-  const layouts = {
-    lg: widgets.map((widget) => ({
-      i: widget.id,
-      x: widget.layout?.x || 0,
-      y: widget.layout?.y || 0,
-      w: widget.layout?.w || 6,
-      h: widget.layout?.h || 4,
-    })),
-  };
+  // Generate layouts for all breakpoints (client-side only)
+  const [layouts, setLayouts] = useState<Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>>>(() => {
+    // Initial empty layout for SSR
+    return {
+      lg: [],
+      md: [],
+      sm: [],
+      xs: [],
+      xxs: [],
+    };
+  });
+
+  // Generate layouts on client side after mount
+  useEffect(() => {
+    const generateLayouts = (): Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>> => {
+      const savedResponsiveLayouts = loadResponsiveLayoutsFromStorage();
+      const widgetIds = widgets.map((w) => w.id);
+      
+      // If we have saved responsive layouts, use them (with fallback for new widgets)
+      if (Object.keys(savedResponsiveLayouts).length > 0) {
+        return convertStorageFormatToLayouts(savedResponsiveLayouts, widgetIds);
+      }
+      
+      // Otherwise, generate default layouts for all breakpoints
+      const breakpoints: Array<'lg' | 'md' | 'sm' | 'xs' | 'xxs'> = ['lg', 'md', 'sm', 'xs', 'xxs'];
+      const generatedLayouts: Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>> = {};
+      
+      breakpoints.forEach((breakpoint) => {
+        generatedLayouts[breakpoint] = widgets.map((widget, index) => {
+          // Use saved layout if available (from widget.config.layout - legacy format)
+          if (widget.layout && breakpoint === 'lg') {
+            return {
+              i: widget.id,
+              x: widget.layout.x,
+              y: widget.layout.y,
+              w: widget.layout.w,
+              h: widget.layout.h,
+            };
+          }
+          
+          // Calculate default layout based on breakpoint
+          const cols: Record<string, number> = {
+            lg: 12,
+            md: 10,
+            sm: 6,
+            xs: 4,
+            xxs: 2,
+          };
+          
+          const defaultWidths: Record<string, number> = {
+            lg: 6,
+            md: 5,
+            sm: 6,
+            xs: 4,
+            xxs: 2,
+          };
+          
+          const colsForBreakpoint = cols[breakpoint] || 12;
+          const defaultWidth = defaultWidths[breakpoint] || 6;
+          const defaultHeight = 4;
+          
+          const widgetsPerRow = Math.floor(colsForBreakpoint / defaultWidth);
+          const x = (index % widgetsPerRow) * defaultWidth;
+          const y = Math.floor(index / widgetsPerRow) * defaultHeight;
+          
+          return {
+            i: widget.id,
+            x: Math.min(x, colsForBreakpoint - defaultWidth),
+            y,
+            w: defaultWidth,
+            h: defaultHeight,
+          };
+        });
+      });
+      
+      return generatedLayouts;
+    };
+
+    const generatedLayouts = generateLayouts();
+    setLayouts(generatedLayouts);
+  }, [widgets]);
 
   return (
     <div className="min-h-screen bg-dark-bg">
