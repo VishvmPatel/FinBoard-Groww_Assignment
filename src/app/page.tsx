@@ -327,7 +327,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-3">
               <BarChart3 className="w-6 h-6 text-primary" />
-              <h1 className="text-2xl font-bold text-dark-text">Finance Dashboard</h1>
+              <h1 className="text-2xl font-bold text-dark-text">FINBOARD</h1>
             </div>
             <p className="text-sm text-dark-muted mt-1">
               {widgets.length} active widget{widgets.length !== 1 ? 's' : ''} • Real-time data

@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, TestTube, Sparkles } from 'lucide-react';
+import { X, TestTube } from 'lucide-react';
 import { WidgetConfig, WidgetField, DisplayMode, FieldMapping, ChartType, TimeInterval } from '@/types';
 import { fetchApiData, extractFieldsFromJson } from '@/utils/api';
 import JSONFieldSelector from './JSONFieldSelector';
-import { WIDGET_TEMPLATES, WidgetTemplate, getTemplatesByCategory, getTemplateCategories } from '@/types/templates';
 
 interface AddWidgetModalProps {
   isOpen: boolean;
@@ -14,8 +13,6 @@ interface AddWidgetModalProps {
 }
 
 export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModalProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('custom');
-  const [showTemplateSelector, setShowTemplateSelector] = useState(true);
   const [widgetName, setWidgetName] = useState('');
   const [widgetDescription, setWidgetDescription] = useState('');
   const [apiUrl, setApiUrl] = useState('');
@@ -33,47 +30,10 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Apply template when selected
-  useEffect(() => {
-    if (selectedTemplate && selectedTemplate !== 'custom') {
-      const template = WIDGET_TEMPLATES.find((t) => t.id === selectedTemplate);
-      if (template) {
-        setWidgetName(template.name);
-        setWidgetDescription(template.description || '');
-        setDisplayMode(template.displayMode);
-        if (template.chartType) setChartType(template.chartType);
-        if (template.timeInterval) setTimeInterval(template.timeInterval);
-        if (template.defaultFields.length > 0) {
-          setSelectedFields([...template.defaultFields]);
-        }
-        if (template.defaultApiUrl) {
-          setApiUrl(template.defaultApiUrl);
-        }
-        if (template.defaultApiKeyHeader) {
-          setApiKeyHeader(template.defaultApiKeyHeader);
-        }
-        if (template.refreshInterval) {
-          setRefreshInterval(template.refreshInterval);
-        }
-      }
-      } else if (selectedTemplate === 'custom') {
-        // Reset to defaults for custom template
-        setWidgetName('');
-        setWidgetDescription('');
-        setApiUrl('');
-      setDisplayMode('card');
-      setChartType('line');
-      setTimeInterval('daily');
-      setSelectedFields([]);
-      setRefreshInterval(30);
-    }
-  }, [selectedTemplate]);
 
   useEffect(() => {
     if (!isOpen) {
       // Reset form when modal closes
-      setSelectedTemplate('custom');
-      setShowTemplateSelector(true);
       setWidgetName('');
       setWidgetDescription('');
       setApiUrl('');
@@ -195,8 +155,6 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
 
   if (!isOpen) return null;
 
-  const currentTemplate = WIDGET_TEMPLATES.find((t) => t.id === selectedTemplate);
-  const templateCategories = getTemplateCategories();
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -214,128 +172,6 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Template Selector */}
-          {showTemplateSelector && (
-            <div className="p-4 bg-dark-bg border border-dark-border rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-medium text-dark-text">Choose a Template</h3>
-                <button
-                  onClick={() => setShowTemplateSelector(false)}
-                  className="ml-auto text-xs text-dark-muted hover:text-dark-text"
-                >
-                  Skip
-                </button>
-              </div>
-              <p className="text-sm text-dark-muted mb-4">
-                Start with a pre-configured template or create a custom widget from scratch.
-              </p>
-              
-              {/* Category Tabs */}
-              <div className="flex flex-wrap gap-2 mb-4 border-b border-dark-border pb-3">
-                <button
-                  onClick={() => setSelectedTemplate('custom')}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                    selectedTemplate === 'custom'
-                      ? 'bg-primary text-white'
-                      : 'bg-dark-card text-dark-muted hover:text-dark-text'
-                  }`}
-                >
-                  Custom
-                </button>
-                {templateCategories.map((category) => {
-                  const categoryTemplates = getTemplatesByCategory(category);
-                  if (categoryTemplates.length === 0) return null;
-                  return (
-                    <button
-                      key={category}
-                      onClick={() => {
-                        // Select first template of this category
-                        setSelectedTemplate(categoryTemplates[0].id);
-                      }}
-                      className={`px-3 py-1.5 text-sm rounded transition-colors capitalize ${
-                        categoryTemplates.some((t) => t.id === selectedTemplate)
-                          ? 'bg-primary text-white'
-                          : 'bg-dark-card text-dark-muted hover:text-dark-text'
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Template Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
-                {WIDGET_TEMPLATES.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => setSelectedTemplate(template.id)}
-                    className={`p-3 text-left border rounded-lg transition-all ${
-                      selectedTemplate === template.id
-                        ? 'border-primary bg-primary/10'
-                        : 'border-dark-border bg-dark-card hover:border-primary/50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-1">
-                      <h4 className="font-medium text-dark-text text-sm">{template.name}</h4>
-                      {selectedTemplate === template.id && (
-                        <div className="w-2 h-2 bg-primary rounded-full"></div>
-                      )}
-                    </div>
-                    <p className="text-xs text-dark-muted line-clamp-2">{template.description}</p>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-dark-muted">
-                      <span className="capitalize">{template.displayMode}</span>
-                      {template.chartType && (
-                        <>
-                          <span>•</span>
-                          <span className="capitalize">{template.chartType}</span>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Template Instructions */}
-              {currentTemplate && currentTemplate.instructions && (
-                <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
-                  <p className="text-xs text-yellow-400 font-medium mb-2">📝 Setup Instructions</p>
-                  <div className="text-xs text-dark-muted whitespace-pre-line space-y-1">
-                    {currentTemplate.instructions.split('\n').map((line, idx) => (
-                      <p key={idx}>{line}</p>
-                    ))}
-                  </div>
-                  {currentTemplate.apiProvider && (
-                    <p className="text-xs text-dark-muted mt-2 pt-2 border-t border-yellow-500/20">
-                      <span className="font-medium">Example API:</span> {currentTemplate.apiProvider}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Show Template Info if template is selected */}
-          {!showTemplateSelector && selectedTemplate !== 'custom' && currentTemplate && (
-            <div className="p-3 bg-dark-bg border border-dark-border rounded flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-sm text-dark-text">
-                  Using template: <span className="font-medium">{currentTemplate.name}</span>
-                </span>
-              </div>
-              <button
-                onClick={() => {
-                  setShowTemplateSelector(true);
-                  setSelectedTemplate('custom');
-                }}
-                className="text-xs text-dark-muted hover:text-dark-text"
-              >
-                Change Template
-              </button>
-            </div>
-          )}
           {/* Widget Name */}
           <div>
             <label className="block text-sm font-medium text-dark-text mb-2">
@@ -371,11 +207,6 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
           <div>
             <label className="block text-sm font-medium text-dark-text mb-2">
               API URL
-              {selectedTemplate !== 'custom' && currentTemplate?.defaultApiUrl && (
-                <span className="ml-2 text-xs text-yellow-400 font-normal">
-                  (Example URL - customize with your own API)
-                </span>
-              )}
             </label>
             <div className="flex gap-2">
               <input
@@ -394,11 +225,6 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
                 Test
               </button>
             </div>
-            {selectedTemplate !== 'custom' && currentTemplate?.defaultApiUrl && (
-              <p className="mt-1 text-xs text-yellow-400">
-                ⚠️ The URL above is an example. You must replace it with your own API endpoint and credentials.
-              </p>
-            )}
             {testResult && (
               <p
                 className={`mt-2 text-sm ${

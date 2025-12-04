@@ -7,7 +7,7 @@ export interface WidgetTemplate {
   id: string;
   name: string;
   description: string;
-  category: 'stock' | 'market' | 'custom';
+  category: 'stock' | 'market';
   displayMode: DisplayMode;
   chartType?: ChartType;
   timeInterval?: TimeInterval;
@@ -120,17 +120,6 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
     instructions: '⚠️ This is an EXAMPLE URL. You need to:\n1. Get your API key from stock.indianapi.in\n2. Add your API key in the "API Key" field with header "x-api-key"\n\nOr use any other API that returns trending stocks data in a similar format.',
   },
 
-  // Custom/Blank Template
-  {
-    id: 'custom',
-    name: 'Custom Widget',
-    description: 'Start with a blank template and configure manually',
-    category: 'custom',
-    displayMode: 'card',
-    defaultFields: [],
-    refreshInterval: 60,
-    instructions: 'Configure all fields manually. Use the JSON field selector to explore your API response.',
-  },
 ];
 
 /**
