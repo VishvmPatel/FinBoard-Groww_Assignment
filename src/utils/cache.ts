@@ -17,7 +17,7 @@ const responseCache = new Map<string, CacheEntry>();
  * Generate a cache key from URL and API key
  * This ensures different API keys get different cache entries
  */
-export function generateCacheKey(url: string, apiKey?: string): string {
+export function generateCacheKey(url: string, apiKey?: string, apiKeyHeader?: string): string {
   try {
     const urlObj = new URL(url);
     // Sort query parameters for consistent keys
@@ -27,11 +27,16 @@ export function generateCacheKey(url: string, apiKey?: string): string {
       .join('&');
     
     const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
-    const key = apiKey ? `${baseUrl}?${sortedParams}&_key=${apiKey.substring(0, 8)}` : `${baseUrl}?${sortedParams}`;
+    // Include both apiKey and apiKeyHeader in cache key for uniqueness
+    const keySuffix = apiKey ? `&_key=${apiKey.substring(0, 8)}` : '';
+    const headerSuffix = apiKeyHeader ? `&_header=${apiKeyHeader}` : '';
+    const key = `${baseUrl}?${sortedParams}${keySuffix}${headerSuffix}`;
     return key;
   } catch {
     // If URL parsing fails, use URL as-is
-    return apiKey ? `${url}_key_${apiKey.substring(0, 8)}` : url;
+    const keySuffix = apiKey ? `_key_${apiKey.substring(0, 8)}` : '';
+    const headerSuffix = apiKeyHeader ? `_header_${apiKeyHeader}` : '';
+    return `${url}${keySuffix}${headerSuffix}`;
   }
 }
 

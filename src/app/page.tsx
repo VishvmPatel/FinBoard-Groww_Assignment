@@ -206,10 +206,10 @@ export default function Dashboard() {
     input.click();
   };
 
-  const handleLayoutChange = (
-    currentLayout: any[],
-    allLayouts: Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>>
-  ) => {
+  const handleLayoutChange =       (
+        currentLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>,
+        allLayouts: Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>>
+      ) => {
     // Update Redux state with current breakpoint layout (for backward compatibility)
     // We'll use the 'lg' layout as the primary one stored in widget config
     const lgLayout = allLayouts.lg || currentLayout;

@@ -31,20 +31,21 @@ export default function JSONFieldSelector({
     
     const query = searchQuery.toLowerCase();
     const filterFields = (fieldList: FieldMapping[]): FieldMapping[] => {
-      return fieldList
-        .map((field) => {
-          const matches = field.path.toLowerCase().includes(query);
-          const filteredChildren = field.children ? filterFields(field.children) : undefined;
-          
-          if (matches || (filteredChildren && filteredChildren.length > 0)) {
-            return {
-              ...field,
-              children: filteredChildren,
-            };
-          }
-          return null;
-        })
-        .filter((f): f is FieldMapping => f !== null);
+      const result: FieldMapping[] = [];
+      
+      for (const field of fieldList) {
+        const matches = field.path.toLowerCase().includes(query);
+        const filteredChildren = field.children ? filterFields(field.children) : undefined;
+        
+        if (matches || (filteredChildren && filteredChildren.length > 0)) {
+          result.push({
+            ...field,
+            children: filteredChildren,
+          });
+        }
+      }
+      
+      return result;
     };
     
     return filterFields(fields);

@@ -50,7 +50,7 @@ export async function fetchApiData(
   try {
     // Check cache first (unless bypassing)
     if (!bypassCache && cacheTTL !== undefined && cacheTTL > 0) {
-      const cacheKey = generateCacheKey(url, apiKey);
+      const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
       const cachedEntry = getCachedData(cacheKey);
       
       if (cachedEntry) {
@@ -59,7 +59,7 @@ export async function fetchApiData(
           data: cachedEntry.data,
           timestamp: cachedEntry.timestamp,
           fromCache: true,
-          cacheAge: cacheAge || 0,
+          cacheAge: cacheAge ?? undefined,
         };
       }
     }
@@ -221,7 +221,7 @@ export async function fetchApiData(
       if (data.error) {
         // Invalidate cache on error
         if (cacheTTL !== undefined && cacheTTL > 0) {
-          const cacheKey = generateCacheKey(url, apiKey);
+          const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
           invalidateCache(cacheKey);
         }
         throw new Error(data.error || 'Proxy request failed');
@@ -234,7 +234,7 @@ export async function fetchApiData(
         
         // Store in cache if TTL is provided
         if (cacheTTL !== undefined && cacheTTL > 0) {
-          const cacheKey = generateCacheKey(url, apiKey);
+          const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
           setCachedData(cacheKey, data.data, cacheTTL, url);
         }
         
@@ -248,7 +248,7 @@ export async function fetchApiData(
       
       // Store in cache if TTL is provided
       if (cacheTTL !== undefined && cacheTTL > 0) {
-        const cacheKey = generateCacheKey(url, apiKey);
+        const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
         setCachedData(cacheKey, data, cacheTTL, url);
       }
       
@@ -296,7 +296,7 @@ export async function fetchApiData(
     
     // Store in cache if TTL is provided
     if (cacheTTL !== undefined && cacheTTL > 0) {
-      const cacheKey = generateCacheKey(url, apiKey);
+      const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
       setCachedData(cacheKey, data, cacheTTL, url);
     }
     
@@ -318,7 +318,7 @@ export async function fetchApiData(
           const errorData = await proxyFetchResponse.json();
           // Invalidate cache on error
           if (cacheTTL !== undefined && cacheTTL > 0) {
-            const cacheKey = generateCacheKey(url, apiKey);
+            const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
             invalidateCache(cacheKey);
           }
           throw new Error(errorData.error || 'Proxy request failed');
@@ -332,7 +332,7 @@ export async function fetchApiData(
         
         // Store in cache if TTL is provided
         if (cacheTTL !== undefined && cacheTTL > 0) {
-          const cacheKey = generateCacheKey(url, apiKey);
+          const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
           setCachedData(cacheKey, proxyData.data, cacheTTL, url);
         }
         
@@ -348,7 +348,7 @@ export async function fetchApiData(
     
         // Invalidate cache on error to avoid serving stale data
         if (cacheTTL !== undefined && cacheTTL > 0) {
-          const cacheKey = generateCacheKey(url, apiKey);
+          const cacheKey = generateCacheKey(url, apiKey, apiKeyHeader);
           invalidateCache(cacheKey);
         }
         
