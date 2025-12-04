@@ -68,7 +68,7 @@ export default function ChartWidget({ widget }: ChartWidgetProps) {
       
       return chartPoint;
     });
-  }, [data, widget.selectedFields, getFieldValue]);
+      }, [data, widget.selectedFields]);
 
   if (loading) {
     return (
