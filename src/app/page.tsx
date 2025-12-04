@@ -14,6 +14,8 @@ import {
   saveResponsiveLayoutsToStorage,
   convertLayoutsToStorageFormat,
   convertStorageFormatToLayouts,
+  exportDashboardConfig,
+  importDashboardConfig,
   type BreakpointLayouts,
   type ImportValidationResult,
 } from '@/utils/persistence';
