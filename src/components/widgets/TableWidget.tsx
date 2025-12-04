@@ -345,7 +345,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
       <div className="text-center py-8">
         <p className="text-dark-muted text-sm mb-2">No data available</p>
         <p className="text-dark-muted text-xs mb-4">
-          The API response doesn&apos;t contain array data. Check the API response structure.
+          {'The API response doesn\'t contain array data. Check the API response structure.'}
         </p>
         <details className="mt-4 text-left max-w-full">
           <summary className="text-xs text-dark-muted cursor-pointer">Debug: API Response</summary>
@@ -370,10 +370,10 @@ export default function TableWidget({ widget }: TableWidgetProps) {
       {allFieldsNA && tableData.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/50 rounded p-3">
           <p className="text-yellow-400 text-sm mb-2">
-            ⚠️ All fields show &quot;N/A&quot; - Field paths don&apos;t match the data structure
+            {'⚠️ All fields show "N/A" - Field paths don\'t match the data structure'}
           </p>
           <p className="text-dark-muted text-xs mb-2">
-            The selected field paths don&apos;t match the actual API response. Check the debug section below to see the actual data structure.
+            {'The selected field paths don\'t match the actual API response. Check the debug section below to see the actual data structure.'}
           </p>
           <details className="mt-2">
             <summary className="text-xs text-yellow-400 cursor-pointer">Show API Response Structure</summary>
@@ -404,7 +404,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
           />
           {searchQuery && (
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-dark-muted">
-              {filteredAndSortedData.length} result{filteredAndSortedData.length !== 1 ? &apos;s&apos; : &apos;&apos;}
+              {filteredAndSortedData.length} result{filteredAndSortedData.length !== 1 ? 's' : ''}
             </div>
           )}
         </div>

@@ -49,7 +49,7 @@ export default function CardWidget({ widget }: CardWidgetProps) {
       <div className="text-center py-8">
         <p className="text-dark-muted text-sm mb-2">No data available for selected fields</p>
         <p className="text-dark-muted text-xs">
-          The API returned data, but the selected field paths don&apos;t match. Check your field selections.
+          {'The API returned data, but the selected field paths don\'t match. Check your field selections.'}
         </p>
         <details className="mt-4 text-left">
           <summary className="text-xs text-dark-muted cursor-pointer">Debug: API Response</summary>
@@ -65,7 +65,7 @@ export default function CardWidget({ widget }: CardWidgetProps) {
     return (
       <div className="text-center py-8">
         <p className="text-dark-muted text-sm mb-2">No data available</p>
-        <p className="text-dark-muted text-xs">The API didn&apos;t return any data. Check your API URL.</p>
+        <p className="text-dark-muted text-xs">{'The API didn\'t return any data. Check your API URL.'}</p>
       </div>
     );
   }
