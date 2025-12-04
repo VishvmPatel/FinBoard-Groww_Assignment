@@ -241,7 +241,7 @@ export default function CandlestickChartWidget({ widget }: CandlestickChartWidge
       <div className="text-center py-8">
         <p className="text-dark-muted text-sm mb-2">No data available for candlestick chart</p>
         <p className="text-dark-muted text-xs">
-          Candlestick charts require Open, High, Low, and Close fields. Make sure you've selected fields with these names.
+          {'Candlestick charts require Open, High, Low, and Close fields. Make sure you\'ve selected fields with these names.'}
         </p>
       </div>
     );

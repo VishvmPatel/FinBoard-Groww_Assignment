@@ -199,7 +199,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
               className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-dark-text placeholder-dark-muted focus:outline-none focus:border-primary resize-none"
             />
             <p className="mt-1 text-xs text-dark-muted">
-              Add a description to help identify this widget's purpose
+              {'Add a description to help identify this widget\'s purpose'}
             </p>
           </div>
 
