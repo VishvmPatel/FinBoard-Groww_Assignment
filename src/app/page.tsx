@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, BarChart3, Download, Upload } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
@@ -39,6 +39,9 @@ export default function Dashboard() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
   
+  // Ref to track if we're updating layouts programmatically (to prevent infinite loops)
+  const isUpdatingLayoutsRef = useRef(false);
+  
   // Initialize localStorage persistence
   useLocalStoragePersistence();
 
@@ -64,7 +67,31 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
+  // Calculate appropriate default size based on widget type
+  const getDefaultWidgetSize = (displayMode: string, chartType?: string) => {
+    // Chart widgets need more space
+    if (displayMode === 'chart') {
+      return {
+        w: 8, // Wider for better chart visibility
+        h: 6, // Taller for better chart visibility
+      };
+    }
+    // Table widgets need more vertical space
+    if (displayMode === 'table') {
+      return {
+        w: 6, // Standard width
+        h: 7, // Taller for table rows
+      };
+    }
+    // Card widgets can be more compact
+    return {
+      w: 4, // Compact width
+      h: 4, // Standard height
+    };
+  };
+
   const handleAddWidget = (widgetConfig: Omit<WidgetConfig, 'id' | 'createdAt' | 'lastUpdated'>) => {
+    const defaultSize = getDefaultWidgetSize(widgetConfig.displayMode, widgetConfig.chartType);
     const newWidget: WidgetConfig = {
       ...widgetConfig,
       id: generateWidgetId(),
@@ -72,11 +99,40 @@ export default function Dashboard() {
       layout: {
         x: (widgets.length * 2) % 12,
         y: Math.floor((widgets.length * 2) / 12) * 4,
-        w: 6,
-        h: 4,
+        w: defaultSize.w,
+        h: defaultSize.h,
       },
     };
     dispatch(addWidget(newWidget));
+    
+    // Immediately clear any saved layouts for this new widget to ensure it uses the correct size
+    const savedLayouts = loadResponsiveLayoutsFromStorage();
+    const breakpoints: Array<'lg' | 'md' | 'sm' | 'xs' | 'xxs'> = ['lg', 'md', 'sm', 'xs', 'xxs'];
+    let layoutsUpdated = false;
+    breakpoints.forEach((bp) => {
+      if (savedLayouts[bp] && savedLayouts[bp]![newWidget.id]) {
+        delete savedLayouts[bp]![newWidget.id];
+        layoutsUpdated = true;
+      }
+    });
+    if (layoutsUpdated) {
+      saveResponsiveLayoutsToStorage(savedLayouts);
+    }
+    
+    // Force immediate layout regeneration to apply the correct size
+    // Use setTimeout to ensure Redux state has updated
+    // Note: The useEffect that depends on [widgets] will run automatically
+    // but we trigger it here to ensure the new widget gets proper sizing immediately
+    setTimeout(() => {
+      // The useEffect that depends on [widgets] will run automatically
+      // We just need to ensure the flag is set so handleLayoutChange doesn't interfere
+      isUpdatingLayoutsRef.current = true;
+      
+      // Reset flag after a short delay
+      setTimeout(() => {
+        isUpdatingLayoutsRef.current = false;
+      }, 200);
+    }, 50);
   };
 
   const handleRemoveWidget = (id: string) => {
@@ -206,10 +262,15 @@ export default function Dashboard() {
     input.click();
   };
 
-  const handleLayoutChange =       (
+  const handleLayoutChange = (
         currentLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>,
         allLayouts: Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>>
       ) => {
+    // Skip if we're updating layouts programmatically (to prevent infinite loops)
+    if (isUpdatingLayoutsRef.current) {
+      return;
+    }
+    
     // Update Redux state with current breakpoint layout (for backward compatibility)
     // We'll use the 'lg' layout as the primary one stored in widget config
     const lgLayout = allLayouts.lg || currentLayout;
@@ -222,6 +283,33 @@ export default function Dashboard() {
         w: item.w,
         h: item.h,
       };
+      
+      // Only update if layout actually changed (prevent unnecessary updates)
+      const widget = widgets.find(w => w.id === item.i);
+      if (widget?.layout) {
+        const currentLayout = widget.layout;
+        // For newly added widgets (created less than 2 seconds ago), always allow size updates
+        // This ensures the correct size gets applied even if handleLayoutChange fires early
+        const isNewWidget = widget.createdAt && (Date.now() - widget.createdAt) < 2000;
+        
+        if (
+          !isNewWidget &&
+          currentLayout.x === layoutData.x &&
+          currentLayout.y === layoutData.y &&
+          currentLayout.w === layoutData.w &&
+          currentLayout.h === layoutData.h
+        ) {
+          // Layout hasn't changed, skip update
+          return;
+        }
+        
+        // For new widgets, if the incoming size is smaller than the widget's intended size,
+        // use the widget's intended size instead (prevents small initial sizes from being saved)
+        if (isNewWidget && (layoutData.w < currentLayout.w || layoutData.h < currentLayout.h)) {
+          layoutData.w = Math.max(layoutData.w, currentLayout.w);
+          layoutData.h = Math.max(layoutData.h, currentLayout.h);
+        }
+      }
       
       layoutMap[item.i] = layoutData;
       
@@ -253,13 +341,74 @@ export default function Dashboard() {
 
   // Generate layouts on client side after mount
   useEffect(() => {
+    // Set flag to prevent handleLayoutChange from triggering during programmatic updates
+    isUpdatingLayoutsRef.current = true;
+    
     const generateLayouts = (): Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>> => {
       const savedResponsiveLayouts = loadResponsiveLayoutsFromStorage();
       const widgetIds = widgets.map((w) => w.id);
       
       // If we have saved responsive layouts, use them (with fallback for new widgets)
+      // But prioritize widget.layout property for widgets that have it (newly added widgets)
       if (Object.keys(savedResponsiveLayouts).length > 0) {
-        return convertStorageFormatToLayouts(savedResponsiveLayouts, widgetIds);
+        const convertedLayouts = convertStorageFormatToLayouts(savedResponsiveLayouts, widgetIds, widgets);
+        
+        // Override with widget.layout for newly added widgets (widgets with layout property)
+        // This ensures new widgets get their appropriate sizes
+        const breakpoints: Array<'lg' | 'md' | 'sm' | 'xs' | 'xxs'> = ['lg', 'md', 'sm', 'xs', 'xxs'];
+        breakpoints.forEach((breakpoint) => {
+          widgets.forEach((widget) => {
+            // If widget has a layout property, ALWAYS use it (for newly added widgets)
+            // This ensures new widgets get their appropriate sizes regardless of saved layouts
+            if (widget.layout) {
+              let layoutIndex = convertedLayouts[breakpoint].findIndex((l) => l.i === widget.id);
+              
+              // If widget not found in converted layouts, add it
+              if (layoutIndex === -1) {
+                convertedLayouts[breakpoint].push({
+                  i: widget.id,
+                  x: widget.layout.x,
+                  y: widget.layout.y,
+                  w: widget.layout.w,
+                  h: widget.layout.h,
+                });
+              } else {
+                if (breakpoint === 'lg') {
+                  // Use the widget.layout for lg breakpoint
+                  convertedLayouts[breakpoint][layoutIndex] = {
+                    i: widget.id,
+                    x: widget.layout.x,
+                    y: widget.layout.y,
+                    w: widget.layout.w,
+                    h: widget.layout.h,
+                  };
+                } else {
+                  // For other breakpoints, use widget-type-based sizes but keep position from lg
+                  const getWidgetSize = (displayMode: string, chartType?: string) => {
+                    if (displayMode === 'chart') {
+                      return { lg: { w: 8, h: 6 }, md: { w: 10, h: 6 }, sm: { w: 6, h: 6 }, xs: { w: 4, h: 5 }, xxs: { w: 2, h: 4 } };
+                    }
+                    if (displayMode === 'table') {
+                      return { lg: { w: 6, h: 7 }, md: { w: 5, h: 7 }, sm: { w: 6, h: 6 }, xs: { w: 4, h: 5 }, xxs: { w: 2, h: 4 } };
+                    }
+                    return { lg: { w: 4, h: 4 }, md: { w: 5, h: 4 }, sm: { w: 6, h: 4 }, xs: { w: 4, h: 4 }, xxs: { w: 2, h: 3 } };
+                  };
+                  const widgetSizes = getWidgetSize(widget.displayMode, widget.chartType);
+                  const sizeForBreakpoint = widgetSizes[breakpoint] || widgetSizes.lg;
+                  convertedLayouts[breakpoint][layoutIndex] = {
+                    ...convertedLayouts[breakpoint][layoutIndex],
+                    x: widget.layout.x, // Keep x position from widget.layout
+                    y: widget.layout.y, // Keep y position from widget.layout
+                    w: sizeForBreakpoint.w,
+                    h: sizeForBreakpoint.h,
+                  };
+                }
+              }
+            }
+          });
+        });
+        
+        return convertedLayouts;
       }
       
       // Otherwise, generate default layouts for all breakpoints
@@ -279,7 +428,7 @@ export default function Dashboard() {
             };
           }
           
-          // Calculate default layout based on breakpoint
+          // Calculate default layout based on breakpoint and widget type
           const cols: Record<string, number> = {
             lg: 12,
             md: 10,
@@ -288,17 +437,42 @@ export default function Dashboard() {
             xxs: 2,
           };
           
-          const defaultWidths: Record<string, number> = {
-            lg: 6,
-            md: 5,
-            sm: 6,
-            xs: 4,
-            xxs: 2,
+          // Get widget-appropriate default sizes
+          const getWidgetSize = (displayMode: string, chartType?: string) => {
+            if (displayMode === 'chart') {
+              return {
+                lg: { w: 8, h: 6 },
+                md: { w: 10, h: 6 },
+                sm: { w: 6, h: 6 },
+                xs: { w: 4, h: 5 },
+                xxs: { w: 2, h: 4 },
+              };
+            }
+            if (displayMode === 'table') {
+              return {
+                lg: { w: 6, h: 7 },
+                md: { w: 5, h: 7 },
+                sm: { w: 6, h: 6 },
+                xs: { w: 4, h: 5 },
+                xxs: { w: 2, h: 4 },
+              };
+            }
+            // Card widgets
+            return {
+              lg: { w: 4, h: 4 },
+              md: { w: 5, h: 4 },
+              sm: { w: 6, h: 4 },
+              xs: { w: 4, h: 4 },
+              xxs: { w: 2, h: 3 },
+            };
           };
           
+          const widgetSizes = getWidgetSize(widget.displayMode, widget.chartType);
+          const sizeForBreakpoint = widgetSizes[breakpoint] || widgetSizes.lg;
+          const defaultWidth = sizeForBreakpoint.w;
+          const defaultHeight = sizeForBreakpoint.h;
+          
           const colsForBreakpoint = cols[breakpoint] || 12;
-          const defaultWidth = defaultWidths[breakpoint] || 6;
-          const defaultHeight = 4;
           
           const widgetsPerRow = Math.floor(colsForBreakpoint / defaultWidth);
           const x = (index % widgetsPerRow) * defaultWidth;
@@ -319,6 +493,11 @@ export default function Dashboard() {
 
     const generatedLayouts = generateLayouts();
     setLayouts(generatedLayouts);
+    
+    // Reset flag after a short delay to allow layout updates to complete
+    setTimeout(() => {
+      isUpdatingLayoutsRef.current = false;
+    }, 100);
   }, [widgets]);
 
   return (

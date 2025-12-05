@@ -132,7 +132,8 @@ export function convertLayoutsToStorageFormat(
  */
 export function convertStorageFormatToLayouts(
   storedLayouts: BreakpointLayouts,
-  widgetIds: string[]
+  widgetIds: string[],
+  widgets?: WidgetConfig[]
 ): Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>> {
   const result: Record<string, Array<{ i: string; x: number; y: number; w: number; h: number }>> = {};
   
@@ -143,16 +144,22 @@ export function convertStorageFormatToLayouts(
     const storedLayout = storedLayouts[breakpoint];
     
     if (storedLayout) {
-      // Use stored layouts
+      // Use stored layouts, but skip widgets that have a layout property (newly added widgets)
+      // Those will be handled below with proper widget-type-based sizing
       for (const [widgetId, layout] of Object.entries(storedLayout)) {
         if (widgetIds.includes(widgetId)) {
-          layoutArray.push({
-            i: widgetId,
-            x: layout.x,
-            y: layout.y,
-            w: layout.w,
-            h: layout.h,
-          });
+          // Check if this widget has a layout property (newly added)
+          const widget = widgets?.find(w => w.id === widgetId);
+          // Only use saved layout if widget doesn't have its own layout property
+          if (!widget?.layout) {
+            layoutArray.push({
+              i: widgetId,
+              x: layout.x,
+              y: layout.y,
+              w: layout.w,
+              h: layout.h,
+            });
+          }
         }
       }
     }
@@ -160,8 +167,10 @@ export function convertStorageFormatToLayouts(
     // Add any widgets that don't have stored layouts (new widgets)
     for (const widgetId of widgetIds) {
       if (!layoutArray.find((item) => item.i === widgetId)) {
-        // Calculate default position based on breakpoint
-        const defaultLayout = calculateDefaultLayout(widgetId, widgetIds, breakpoint);
+        // Find widget config if available to get widget type for appropriate sizing
+        const widget = widgets?.find(w => w.id === widgetId);
+        // Calculate default position based on breakpoint and widget type
+        const defaultLayout = calculateDefaultLayout(widgetId, widgetIds, breakpoint, widget);
         layoutArray.push(defaultLayout);
       }
     }
@@ -173,12 +182,13 @@ export function convertStorageFormatToLayouts(
 }
 
 /**
- * Calculate default layout for a widget based on breakpoint
+ * Calculate default layout for a widget based on breakpoint and widget type
  */
 function calculateDefaultLayout(
   widgetId: string,
   allWidgetIds: string[],
-  breakpoint: keyof BreakpointLayouts
+  breakpoint: keyof BreakpointLayouts,
+  widget?: WidgetConfig
 ): { i: string; x: number; y: number; w: number; h: number } {
   const index = allWidgetIds.indexOf(widgetId);
   
@@ -191,18 +201,42 @@ function calculateDefaultLayout(
     xxs: 2,
   };
   
-  // Default widget widths per breakpoint
-  const defaultWidths: Record<string, number> = {
-    lg: 6,
-    md: 5,
-    sm: 6,
-    xs: 4,
-    xxs: 2,
+  // Get widget-appropriate default sizes based on display mode
+  const getWidgetSize = (displayMode?: string, chartType?: string) => {
+    if (displayMode === 'chart') {
+      return {
+        lg: { w: 8, h: 6 },
+        md: { w: 10, h: 6 },
+        sm: { w: 6, h: 6 },
+        xs: { w: 4, h: 5 },
+        xxs: { w: 2, h: 4 },
+      };
+    }
+    if (displayMode === 'table') {
+      return {
+        lg: { w: 6, h: 7 },
+        md: { w: 5, h: 7 },
+        sm: { w: 6, h: 6 },
+        xs: { w: 4, h: 5 },
+        xxs: { w: 2, h: 4 },
+      };
+    }
+    // Card widgets (default)
+    return {
+      lg: { w: 4, h: 4 },
+      md: { w: 5, h: 4 },
+      sm: { w: 6, h: 4 },
+      xs: { w: 4, h: 4 },
+      xxs: { w: 2, h: 3 },
+    };
   };
   
+  const widgetSizes = getWidgetSize(widget?.displayMode, widget?.chartType);
+  const sizeForBreakpoint = widgetSizes[breakpoint] || widgetSizes.lg;
+  const defaultWidth = sizeForBreakpoint.w;
+  const defaultHeight = sizeForBreakpoint.h;
+  
   const colsForBreakpoint = cols[breakpoint] || 12;
-  const defaultWidth = defaultWidths[breakpoint] || 6;
-  const defaultHeight = 4;
   
   // Calculate position: place widgets in a grid
   const widgetsPerRow = Math.floor(colsForBreakpoint / defaultWidth);
