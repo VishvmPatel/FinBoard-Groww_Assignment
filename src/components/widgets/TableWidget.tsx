@@ -357,40 +357,8 @@ export default function TableWidget({ widget }: TableWidgetProps) {
     );
   }
 
-  // Check if all values are N/A (field paths don't match)
-  const sampleRow = tableData[0];
-  const allFieldsNA = widget.selectedFields.every((field) => {
-    const value = getNestedValue(sampleRow, field.path);
-    return value === null || value === undefined;
-  });
-
   return (
     <div className="space-y-4">
-      {/* Debug warning if all fields show N/A */}
-      {allFieldsNA && tableData.length > 0 && (
-        <div className="bg-yellow-500/10 border border-yellow-500/50 rounded p-3">
-          <p className="text-yellow-400 text-sm mb-2">
-            {'⚠️ All fields show "N/A" - Field paths don\'t match the data structure'}
-          </p>
-          <p className="text-dark-muted text-xs mb-2">
-            {'The selected field paths don\'t match the actual API response. Check the debug section below to see the actual data structure.'}
-          </p>
-          <details className="mt-2">
-            <summary className="text-xs text-yellow-400 cursor-pointer">Show API Response Structure</summary>
-            <div className="mt-2 space-y-2">
-              <p className="text-xs text-dark-muted">Sample row data:</p>
-              <pre className="text-xs text-dark-muted bg-dark-bg p-2 rounded overflow-auto max-h-40">
-                {JSON.stringify(sampleRow, null, 2)}
-              </pre>
-              <p className="text-xs text-dark-muted mt-2">Full API response:</p>
-              <pre className="text-xs text-dark-muted bg-dark-bg p-2 rounded overflow-auto max-h-40">
-                {JSON.stringify(data, null, 2)}
-              </pre>
-            </div>
-          </details>
-        </div>
-      )}
-
       {/* Search and Filter Toggle */}
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">

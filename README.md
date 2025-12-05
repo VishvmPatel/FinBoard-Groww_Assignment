@@ -1,151 +1,161 @@
-# FinBoard - Finance Dashboard Builder
+# FINBOARD
 
-A customizable finance dashboard where users can add, remove, configure, and rearrange widgets. Each widget connects to a financial API and displays real-time data.
+A customizable finance dashboard builder that lets you connect to any financial API and create real-time data widgets.
+
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38bdf8)
 
 ## Features
 
-### Core Features
-- **Widget Management System**
-  - Add widgets with custom API endpoints
-  - Remove widgets
-  - Drag-and-drop widget rearranging
-  - Responsive grid layout
+- **Custom Widgets** - Create widgets from any finance API (stocks, crypto, forex, etc.)
+- **Multiple Display Modes** - Cards, tables, line charts, and candlestick charts
+- **Real-time Updates** - Auto-refresh with configurable intervals
+- **Responsive Layout** - Drag-and-drop grid that adapts to all screen sizes
+- **Data Caching** - Smart caching to reduce API calls
+- **Theme Support** - Light and dark mode
+- **Export/Import** - Save and restore your dashboard configuration
+- **Field Explorer** - Automatically discover and select data fields from API responses
 
-- **API Integration**
-  - Fetch and cache API responses
-  - Handle rate limits, errors, loading states
-  - Auto-refresh widgets using selected interval
-  - JSON explorer component to map fields
+## Quick Start
 
-- **Widget Types**
-  - **Finance Cards:** Display selected fields in card format
-  - **Table Widgets:** Paginated and searchable table view
-  - **Charts:** Line chart visualization support
-
-- **Data Persistence**
-  - Persist widget configurations
-  - Persist layout positions
-  - Restore dashboard on refresh
-  - Export/import configuration JSON (structure ready)
-
-### UI/UX
-- Dark themed dashboard UI
-- Empty states, error states, loading skeletons
-- Responsive design
-
-## Tech Stack
-
-- **Framework:** Next.js 14 (App Router)
-- **Styling:** Tailwind CSS
-- **State Management:** Redux Toolkit
-- **Charting:** Recharts
-- **Layout:** react-grid-layout
-- **Storage:** LocalStorage persistence
-- **Fetching:** Custom polling with intervals
-
-## Getting Started
-
-### Prerequisites
-- Node.js 18+ 
-- npm or yarn
-
-### Installation
-
-1. Install dependencies:
 ```bash
+# Install dependencies
 npm install
-```
 
-2. Run the development server:
-```bash
+# Run development server
 npm run dev
+
+# Build for production
+npm run build
+npm start
 ```
 
-3. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Project Structure
-
-```
-src/
-├── app/                 # Next.js App Router
-│   ├── layout.tsx      # Root layout with Redux provider
-│   ├── page.tsx        # Main dashboard page
-│   └── globals.css     # Global styles
-├── components/         # React components
-│   ├── widgets/        # Widget type components
-│   │   ├── CardWidget.tsx
-│   │   ├── TableWidget.tsx
-│   │   └── ChartWidget.tsx
-│   ├── WidgetContainer.tsx
-│   ├── AddWidgetModal.tsx
-│   └── JSONFieldSelector.tsx
-├── store/              # Redux store
-│   ├── slices/         # Redux slices
-│   │   └── widgetsSlice.ts
-│   ├── store.ts
-│   ├── hooks.ts
-│   └── Provider.tsx
-├── hooks/              # Custom React hooks
-│   ├── useWidgetData.ts
-│   └── useLocalStorage.ts
-├── utils/              # Utility functions
-│   ├── api.ts          # API fetching utilities
-│   └── persistence.ts  # LocalStorage utilities
-└── types/              # TypeScript types
-    └── widget.ts
-```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
 
 ### Adding a Widget
 
-1. Click the "+ Add Widget" button
-2. Enter a widget name (e.g., "Bitcoin Price Tracker")
-3. Enter an API URL (e.g., `https://api.coinbase.com/v2/exchange-rates?currency=BTC`)
-4. Click "Test" to verify the API connection
-5. Select fields to display from the JSON explorer
-6. Choose a display mode (Card, Table, or Chart)
-7. Set the refresh interval in seconds
-8. Click "Add Widget"
+1. Click **"+ Add Widget"** or **"+ Add Your First Widget"**
+2. Enter your API URL
+3. (Optional) Add API key and header name if required
+4. Click **"Test API"** to verify the connection
+5. Select fields from the JSON explorer
+6. Choose display mode (Card, Table, or Chart)
+7. Set refresh interval and cache duration
+8. Click **"Add Widget"**
 
-### Example APIs
+### Widget Types
 
-- **Coinbase API:** `https://api.coinbase.com/v2/exchange-rates?currency=BTC`
-- **CoinGecko API:** `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd`
-- **Alpha Vantage:** `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBM&apikey=YOUR_API_KEY`
+**Card Widget** - Display key metrics in a card format
+- Best for: Single values, price displays, key indicators
 
-### Widget Operations
+**Table Widget** - Show data in a sortable, filterable table
+- Best for: Lists of stocks, market data, multiple records
+- Features: Search, sorting, pagination, column filters
 
-- **Drag & Drop:** Click and drag widgets to rearrange
-- **Resize:** Drag the bottom-right corner to resize widgets
-- **Refresh:** Click the refresh icon to manually update data
-- **Remove:** Click the X icon to remove a widget
+**Chart Widget** - Visualize time-series data
+- Line Chart: Track trends over time
+- Candlestick Chart: OHLC data visualization
 
-## Development
+### Managing Widgets
 
-### Build for Production
+- **Drag & Drop** - Rearrange widgets by dragging
+- **Resize** - Click and drag corners to resize
+- **Edit** - Click the settings icon to modify widget configuration
+- **Refresh** - Click the refresh icon for manual data update
+- **Remove** - Click the X icon to delete a widget
+
+### Export/Import
+
+**Export** - Download your dashboard configuration as JSON
+- Includes all widgets and their layouts
+- Preserves responsive layouts for all screen sizes
+
+**Import** - Restore a saved dashboard
+- Upload a previously exported JSON file
+- Validates data before importing
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **State Management**: Redux Toolkit
+- **Charts**: Recharts
+- **Layout**: react-grid-layout
+- **Storage**: LocalStorage
+
+## Project Structure
+
+```
+src/
+├── app/              # Next.js app router pages
+├── components/       # React components
+│   └── widgets/     # Widget components
+├── hooks/           # Custom React hooks
+├── store/           # Redux store and slices
+├── utils/           # Utility functions
+└── types/           # TypeScript type definitions
+```
+
+## API Integration
+
+FINBOARD works with any REST API that returns JSON. Common use cases:
+
+- **Stock APIs**: Finnhub, Alpha Vantage, Yahoo Finance
+- **Crypto APIs**: Coinbase, Binance, CoinGecko
+- **Forex APIs**: ExchangeRate-API, Fixer.io
+- **Economic Data**: FRED, World Bank API
+
+### Authentication
+
+Two methods supported:
+1. **Query Parameters** - Add API key directly in URL (`?token=YOUR_KEY`)
+2. **Header-based** - Use API Key field with custom header name
+
+### CORS Handling
+
+If an API blocks browser requests, FINBOARD automatically uses a Next.js proxy route to fetch data server-side.
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push your code to GitHub
+2. Import project in Vercel
+3. Deploy (automatic builds on push)
+
+### Other Platforms
 
 ```bash
 npm run build
 npm start
 ```
 
-### Linting
+The app will run on port 3000 by default.
 
-```bash
-npm run lint
-```
+## Configuration
 
-## Future Enhancements
+### Environment Variables
 
-- Theme toggle (dark/light)
-- WebSocket support for live updates
-- Dashboard templates system
-- Export/import dashboard configurations
-- More chart types (candlestick, bar, pie)
-- Widget settings modal
-- API authentication support
+No environment variables required. All configuration is done through the UI.
 
-## License
+### Cache Settings
 
-MIT
+- **Cache TTL**: How long to cache API responses (default: 30s)
+- **Refresh Interval**: How often to fetch new data (0 = disabled)
+
+## Tips
+
+- Use shorter cache TTL for frequently changing data
+- Set refresh interval based on API rate limits
+- Test your API connection before adding fields
+- Use the JSON explorer to find the correct field paths
+- Export your dashboard regularly to backup configurations
+
+
+---
+
+Built with ❤️ for finance enthusiasts
