@@ -1,3 +1,11 @@
+/**
+ * API Utilities
+ * 
+ * Functions for fetching data from external APIs, handling CORS,
+ * rate limiting, caching, and extracting fields from JSON responses.
+ * Includes automatic fallback to proxy route for CORS issues.
+ */
+
 import { ApiResponse, FieldMapping } from '@/types';
 import {
   generateCacheKey,
@@ -7,10 +15,15 @@ import {
   getCacheAge,
 } from './cache';
 
-// Rate limit tracking
+// In-memory rate limit tracking by API origin
+// Tracks when rate limits expire to prevent unnecessary requests
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
 
-// Check if we're rate limited
+/**
+ * Checks if a URL is currently rate limited
+ * @param url - API URL to check
+ * @returns Object indicating if rate limited and when it expires
+ */
 function checkRateLimit(url: string): { limited: boolean; resetTime?: number } {
   const now = Date.now();
   const cacheKey = new URL(url).origin;
@@ -28,7 +41,11 @@ function checkRateLimit(url: string): { limited: boolean; resetTime?: number } {
   return { limited: false };
 }
 
-// Record rate limit
+/**
+ * Records a rate limit for a URL origin
+ * @param url - API URL that was rate limited
+ * @param resetTime - Timestamp when rate limit expires
+ */
 function recordRateLimit(url: string, resetTime: number) {
   const cacheKey = new URL(url).origin;
   rateLimitCache.set(cacheKey, {
@@ -37,6 +54,19 @@ function recordRateLimit(url: string, resetTime: number) {
   });
 }
 
+/**
+ * Fetches data from an API endpoint
+ * Handles caching, rate limiting, CORS fallback, and error retry logic
+ * @param url - API endpoint URL
+ * @param apiKey - Optional API key for header-based authentication
+ * @param apiKeyHeader - Optional header name for API key (e.g., 'x-api-key')
+ * @param retryCount - Current retry attempt (for recursive retries)
+ * @param maxRetries - Maximum number of retry attempts
+ * @param useProxy - Whether to force use of proxy route
+ * @param cacheTTL - Cache time-to-live in seconds
+ * @param bypassCache - If true, bypasses cache and forces fresh fetch
+ * @returns API response with data, error, timestamp, and cache info
+ */
 export async function fetchApiData(
   url: string,
   apiKey?: string,
@@ -360,6 +390,14 @@ export async function fetchApiData(
   }
 }
 
+/**
+ * Recursively extracts field mappings from a JSON object
+ * Used by the JSON field selector to build a tree of available fields
+ * @param obj - JSON object to extract fields from
+ * @param prefix - Current path prefix (for nested objects)
+ * @param showArraysOnly - If true, only shows array fields (filters out primitives)
+ * @returns Array of field mappings with paths, values, and types
+ */
 export function extractFieldsFromJson(
   obj: any,
   prefix = '',
@@ -435,6 +473,13 @@ export function extractFieldsFromJson(
   return fields;
 }
 
+/**
+ * Extracts a nested value from an object using a dot-notation path
+ * Supports array indexing with bracket notation (e.g., 'data.items[0].price')
+ * @param obj - Object to extract value from
+ * @param path - Dot-notation path to the value (e.g., 'data.price' or 'items[0].name')
+ * @returns Extracted value or undefined if path doesn't exist
+ */
 export function getNestedValue(obj: any, path: string): any {
   const keys = path.split('.');
   let current = obj;

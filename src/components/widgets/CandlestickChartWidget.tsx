@@ -1,3 +1,11 @@
+/**
+ * Candlestick Chart Widget Component
+ * 
+ * Displays OHLC (Open, High, Low, Close) financial data as candlestick charts.
+ * Uses Recharts ComposedChart with custom bars to render candlestick patterns.
+ * Automatically extracts OHLC data from API responses and visualizes price movements.
+ */
+
 'use client';
 
 import { useMemo } from 'react';
@@ -16,19 +24,30 @@ import { WidgetConfig } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { getNestedValue } from '@/utils/api';
 
+/**
+ * Props for CandlestickChartWidget component
+ */
 interface CandlestickChartWidgetProps {
-  widget: WidgetConfig;
+  widget: WidgetConfig; // Widget configuration
 }
 
+/**
+ * Data structure for candlestick chart data points
+ */
 interface CandlestickData {
-  name: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  date?: string;
+  name: string; // X-axis label (usually date/time)
+  open: number; // Opening price
+  high: number; // Highest price
+  low: number; // Lowest price
+  close: number; // Closing price
+  date?: string; // Optional date string
 }
 
+/**
+ * Candlestick chart widget component for OHLC data
+ * @param widget - Widget configuration containing OHLC fields
+ * @returns Candlestick chart JSX with price movement visualization
+ */
 export default function CandlestickChartWidget({ widget }: CandlestickChartWidgetProps) {
   const { data, loading, error } = useWidgetData(widget);
   

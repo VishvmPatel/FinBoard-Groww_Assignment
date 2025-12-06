@@ -1,3 +1,18 @@
+/**
+ * Main Dashboard Page
+ * 
+ * The primary dashboard component that manages:
+ * - Widget rendering and layout (using react-grid-layout)
+ * - Widget CRUD operations (add, edit, remove)
+ * - Responsive layout management across breakpoints
+ * - Dashboard export/import functionality
+ * - LocalStorage persistence
+ * - Currency detection and updates
+ * 
+ * Uses Redux for state management and react-grid-layout for drag-and-drop
+ * widget positioning with responsive breakpoints.
+ */
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -28,8 +43,13 @@ import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
+// Wrap Responsive component with WidthProvider for dynamic width calculation
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+/**
+ * Main dashboard component
+ * @returns Dashboard JSX with widgets, modals, and controls
+ */
 export default function Dashboard() {
   const dispatch = useAppDispatch();
   const widgets = useAppSelector((state) => state.widgets.widgets);
@@ -633,7 +653,12 @@ export default function Dashboard() {
   );
 }
 
-// Wrapper component to handle widget data fetching
+/**
+ * Widget Wrapper Component
+ * 
+ * Wraps individual widgets to handle data fetching and currency detection.
+ * Automatically updates widget configuration when currency is detected from API.
+ */
 function WidgetWrapper({
   widget,
   onRemove,
@@ -643,7 +668,21 @@ function WidgetWrapper({
   onRemove: (id: string) => void;
   onEdit: (id: string) => void;
 }) {
-  const { loading, error, lastUpdated, refresh, fromCache, cacheAge } = useWidgetData(widget);
+  const dispatch = useAppDispatch();
+  const { loading, error, lastUpdated, refresh, fromCache, cacheAge, detectedCurrency } = useWidgetData(widget);
+
+  // Update widget config in Redux when currency is detected from API response
+  // Only updates if currency changed to avoid unnecessary re-renders
+  useEffect(() => {
+    if (detectedCurrency && (!widget.detectedCurrency || 
+        widget.detectedCurrency.code !== detectedCurrency.code ||
+        widget.detectedCurrency.path !== detectedCurrency.path)) {
+      dispatch(updateWidget({
+        id: widget.id,
+        config: { detectedCurrency }
+      }));
+    }
+  }, [detectedCurrency, widget.id, widget.detectedCurrency, dispatch]);
 
   return (
     <WidgetContainer

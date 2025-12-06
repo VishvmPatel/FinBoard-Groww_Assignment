@@ -1,8 +1,19 @@
+/**
+ * Theme Toggle Component
+ * 
+ * Button component that allows users to switch between light and dark themes.
+ * Displays sun icon in dark mode and moon icon in light mode.
+ */
+
 'use client';
 
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 
+/**
+ * Theme toggle button component
+ * @returns Button that toggles between light and dark themes
+ */
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
 

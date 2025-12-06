@@ -1,3 +1,11 @@
+/**
+ * Widget Container Component
+ * 
+ * Wrapper component that provides a consistent UI for all widgets.
+ * Includes header with widget name, currency badge, refresh/settings/remove buttons,
+ * and footer with last updated timestamp and cache status.
+ */
+
 'use client';
 
 import { ReactNode } from 'react';
@@ -5,6 +13,9 @@ import { X, Settings, RefreshCw } from 'lucide-react';
 import { WidgetConfig } from '@/types';
 import { formatTime } from '@/utils/helpers';
 
+/**
+ * Props for WidgetContainer component
+ */
 interface WidgetContainerProps {
   widget: WidgetConfig;
   onRemove: (id: string) => void;
@@ -17,6 +28,10 @@ interface WidgetContainerProps {
   cacheAge?: number | null;
 }
 
+/**
+ * Widget container component that wraps widget content
+ * @param props - WidgetContainerProps containing widget config and callbacks
+ */
 export default function WidgetContainer({
   widget,
   onRemove,
@@ -29,12 +44,20 @@ export default function WidgetContainer({
   cacheAge,
 }: WidgetContainerProps) {
 
+  /**
+   * Handles widget removal
+   * Prevents event propagation to avoid triggering drag operations
+   */
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     onRemove(widget.id);
   };
 
+  /**
+   * Handles manual widget refresh
+   * Prevents event propagation to avoid triggering drag operations
+   */
   const handleRefresh = (e: React.MouseEvent) => {
     e.stopPropagation();
     onRefresh();
@@ -46,7 +69,18 @@ export default function WidgetContainer({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drag-handle cursor-move flex-1 min-w-0">
           <div className="flex-1 min-w-0">
-            <h3 className="text-dark-text font-semibold text-lg truncate">{widget.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-dark-text font-semibold text-lg truncate">{widget.name}</h3>
+              {/* Display detected currency badge if currency was auto-detected from API */}
+              {widget.detectedCurrency && (
+                <span 
+                  className="text-xs font-medium bg-primary/20 text-primary px-2 py-0.5 rounded flex-shrink-0"
+                  title={`Currency detected: ${widget.detectedCurrency.code} (${widget.detectedCurrency.symbol})`}
+                >
+                  {widget.detectedCurrency.symbol} {widget.detectedCurrency.code}
+                </span>
+              )}
+            </div>
             {widget.description && (
               <p className="text-xs text-dark-muted mt-0.5 line-clamp-1" title={widget.description}>
                 {widget.description}

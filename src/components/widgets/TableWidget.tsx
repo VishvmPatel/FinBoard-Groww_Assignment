@@ -1,3 +1,11 @@
+/**
+ * Table Widget Component
+ * 
+ * Displays widget data in a sortable, filterable, and searchable table format.
+ * Supports pagination, column filtering (text, number, date, select, multiselect),
+ * sorting, and search functionality.
+ */
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -8,15 +16,26 @@ import { getNestedValue } from '@/utils/api';
 import { formatFieldValue } from '@/utils/formatting';
 import { FilterType, ColumnFilter, FilterState } from '@/types/filters';
 
+/**
+ * Props for TableWidget component
+ */
 interface TableWidgetProps {
-  widget: WidgetConfig;
+  widget: WidgetConfig; // Widget configuration
 }
 
+/**
+ * Sort configuration for table columns
+ */
 type SortConfig = {
-  field: string;
-  direction: 'asc' | 'desc';
+  field: string; // Field path to sort by
+  direction: 'asc' | 'desc'; // Sort direction
 };
 
+/**
+ * Table widget component with advanced filtering and sorting
+ * @param widget - Widget configuration containing fields to display
+ * @returns Table widget JSX with data, filters, and pagination
+ */
 export default function TableWidget({ widget }: TableWidgetProps) {
   const { data, loading, error, getFieldValue } = useWidgetData(widget);
   const [searchQuery, setSearchQuery] = useState('');
@@ -651,7 +670,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
                   
                   // Apply formatting if specified
                   const formattedValue = field.format
-                    ? formatFieldValue(value, field)
+                    ? formatFieldValue(value, field, widget.detectedCurrency?.symbol)
                     : (value !== null && value !== undefined ? String(value) : 'N/A');
                   
                   return (

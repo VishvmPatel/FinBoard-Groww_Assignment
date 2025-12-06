@@ -1,3 +1,15 @@
+/**
+ * JSON Field Selector Component
+ * 
+ * Interactive component for exploring and selecting fields from API JSON responses.
+ * Features:
+ * - Tree view of JSON structure
+ * - Search/filter fields
+ * - Field configuration (format, currency symbol, decimal places)
+ * - Display mode selection (card/table/chart)
+ * - Shows auto-detected currency and allows override
+ */
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -5,16 +17,24 @@ import { Plus, X, Search, Settings } from 'lucide-react';
 import { FieldMapping, WidgetField, DisplayMode } from '@/types';
 import { formatOptions, currencySymbols } from '@/utils/formatting';
 
+/**
+ * Props for JSONFieldSelector component
+ */
 interface JSONFieldSelectorProps {
-  fields: FieldMapping[];
-  selectedFields: WidgetField[];
-  onFieldsChange: (fields: WidgetField[]) => void;
-  displayMode: DisplayMode;
-  onDisplayModeChange: (mode: DisplayMode) => void;
-  showArraysOnly: boolean;
-  onShowArraysOnlyChange: (show: boolean) => void;
+  fields: FieldMapping[]; // Available fields from API response
+  selectedFields: WidgetField[]; // Currently selected fields
+  onFieldsChange: (fields: WidgetField[]) => void; // Callback when fields change
+  displayMode: DisplayMode; // Current display mode
+  onDisplayModeChange: (mode: DisplayMode) => void; // Callback when display mode changes
+  showArraysOnly: boolean; // Whether to filter to show only array fields
+  onShowArraysOnlyChange: (show: boolean) => void; // Callback when filter changes
+  detectedCurrency?: { code: string; symbol: string; path: string } | null; // Auto-detected currency
 }
 
+/**
+ * JSON field selector component for exploring and configuring fields
+ * @param props - JSONFieldSelectorProps
+ */
 export default function JSONFieldSelector({
   fields,
   selectedFields,
@@ -23,6 +43,7 @@ export default function JSONFieldSelector({
   onDisplayModeChange,
   showArraysOnly,
   onShowArraysOnlyChange,
+  detectedCurrency,
 }: JSONFieldSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -281,12 +302,24 @@ function FieldConfigItem({
           {/* Currency Symbol (if currency format) */}
           {field.format === 'currency' && (
             <div>
-              <label className="block text-xs font-medium text-dark-text mb-1">Currency Symbol</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-dark-text">Currency Symbol</label>
+                {detectedCurrency && !field.currencySymbol && (
+                  <span className="text-[10px] text-primary bg-primary/20 px-1.5 py-0.5 rounded">
+                    Auto: {detectedCurrency.symbol} ({detectedCurrency.code})
+                  </span>
+                )}
+              </div>
               <select
-                value={field.currencySymbol || '$'}
+                value={field.currencySymbol || (detectedCurrency?.symbol) || '$'}
                 onChange={(e) => handleCurrencySymbolChange(e.target.value)}
                 className="w-full px-2 py-1 text-xs bg-dark-bg border border-dark-border rounded text-dark-text focus:outline-none focus:border-primary"
               >
+                {detectedCurrency && !field.currencySymbol && (
+                  <option value={detectedCurrency.symbol} className="font-medium">
+                    {detectedCurrency.symbol} - {detectedCurrency.code} (Auto-detected)
+                  </option>
+                )}
                 {currencySymbols.map((symbol) => (
                   <option key={symbol.value} value={symbol.value}>
                     {symbol.label}

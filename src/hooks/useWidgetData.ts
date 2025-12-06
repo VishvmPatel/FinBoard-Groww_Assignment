@@ -1,19 +1,39 @@
+/**
+ * Widget Data Hook
+ * 
+ * Custom React hook for fetching and managing widget data from APIs.
+ * Handles data fetching, caching, rate limiting, auto-refresh, and currency detection.
+ */
+
 import { useEffect, useState, useCallback } from 'react';
 import { fetchApiData, getNestedValue } from '@/utils/api';
 import { WidgetConfig, ApiResponse, WidgetField } from '@/types';
 import { addTimeIntervalToUrl } from '@/utils/apiUrlBuilder';
+import { detectCurrency } from '@/utils/currencyDetection';
 
+/**
+ * Hook for managing widget data fetching and state
+ * @param widget - Widget configuration containing API URL and settings
+ * @returns Object containing data, loading state, error, and helper functions
+ */
 export function useWidgetData(widget: WidgetConfig) {
-  const [data, setData] = useState<ApiResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isRateLimited, setIsRateLimited] = useState(false);
-  const [rateLimitResetTime, setRateLimitResetTime] = useState<number | null>(null);
-  const [fromCache, setFromCache] = useState(false);
-  const [cacheAge, setCacheAge] = useState<number | null>(null);
+  // State management for widget data
+  const [data, setData] = useState<ApiResponse | null>(null); // API response data
+  const [loading, setLoading] = useState(true); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error message if fetch fails
+  const [isRateLimited, setIsRateLimited] = useState(false); // Whether API rate limit is active
+  const [rateLimitResetTime, setRateLimitResetTime] = useState<number | null>(null); // When rate limit expires
+  const [fromCache, setFromCache] = useState(false); // Whether data came from cache
+  const [cacheAge, setCacheAge] = useState<number | null>(null); // Age of cached data in seconds
+  const [detectedCurrency, setDetectedCurrency] = useState<{ code: string; symbol: string; path: string } | null>(null); // Auto-detected currency
 
+  /**
+   * Fetches data from the widget's API endpoint
+   * Handles caching, rate limiting, CORS fallback, and currency detection
+   * @param bypassCache - If true, bypasses cache and forces fresh fetch
+   */
   const fetchData = useCallback(async (bypassCache = false) => {
-    // Don't fetch if rate limited
+    // Don't fetch if rate limited - wait until rate limit expires
     if (isRateLimited && rateLimitResetTime) {
       const now = Date.now();
       if (now < rateLimitResetTime) {
@@ -95,6 +115,18 @@ export function useWidgetData(widget: WidgetConfig) {
       setRateLimitResetTime(null);
       setFromCache(response.fromCache || false);
       setCacheAge(response.cacheAge || null);
+      
+      // Detect currency from the response data
+      if (response.data) {
+        const currency = detectCurrency(response.data);
+        setDetectedCurrency(currency);
+        if (currency) {
+          console.log(`[Widget ${widget.id}] Currency detected: ${currency.code} (${currency.symbol}) at path: ${currency.path}`);
+        }
+      } else {
+        setDetectedCurrency(null);
+      }
+      
       console.log(`[Widget ${widget.id}] Data fetched${response.fromCache ? ' (from cache)' : ''}:`, response.data);
     }
     
@@ -117,6 +149,12 @@ export function useWidgetData(widget: WidgetConfig) {
     }
   }, [fetchData, widget.refreshInterval, isRateLimited, rateLimitResetTime]);
 
+  /**
+   * Helper function to extract field value from API response
+   * Uses JSON path to navigate nested object structures
+   * @param field - Field configuration with path to extract
+   * @returns Extracted value or null if not found
+   */
   const getFieldValue = useCallback(
     (field: WidgetField) => {
       if (!data?.data) return null;
@@ -125,15 +163,17 @@ export function useWidgetData(widget: WidgetConfig) {
     [data]
   );
 
+  // Return hook interface
   return {
-    data: data?.data,
-    loading,
-    error,
-    lastUpdated: data?.timestamp,
-    refresh: () => fetchData(true), // Manual refresh bypasses cache
-    getFieldValue,
-    fromCache,
-    cacheAge,
+    data: data?.data, // The actual data from API (extracted from ApiResponse wrapper)
+    loading, // Whether data is currently being fetched
+    error, // Error message if fetch failed
+    lastUpdated: data?.timestamp, // Timestamp of last successful fetch
+    refresh: () => fetchData(true), // Manual refresh function (bypasses cache)
+    getFieldValue, // Helper to extract field values from data
+    fromCache, // Whether current data came from cache
+    cacheAge, // Age of cached data in seconds
+    detectedCurrency, // Auto-detected currency from API response
   };
 }
 

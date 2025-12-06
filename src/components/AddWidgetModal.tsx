@@ -1,17 +1,37 @@
+/**
+ * Add Widget Modal Component
+ * 
+ * Modal dialog for creating new widgets. Allows users to:
+ * - Enter API URL and test connection
+ * - Configure API authentication (header-based)
+ * - Select fields from API response using JSON explorer
+ * - Configure display mode (card/table/chart)
+ * - Set refresh intervals and cache settings
+ * - Auto-detects currency from API response
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { X, TestTube } from 'lucide-react';
 import { WidgetConfig, WidgetField, DisplayMode, FieldMapping, ChartType, TimeInterval } from '@/types';
 import { fetchApiData, extractFieldsFromJson } from '@/utils/api';
+import { detectCurrency } from '@/utils/currencyDetection';
 import JSONFieldSelector from './JSONFieldSelector';
 
+/**
+ * Props for AddWidgetModal component
+ */
 interface AddWidgetModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onAdd: (widget: Omit<WidgetConfig, 'id' | 'createdAt' | 'lastUpdated'>) => void;
+  isOpen: boolean; // Whether modal is visible
+  onClose: () => void; // Callback to close modal
+  onAdd: (widget: Omit<WidgetConfig, 'id' | 'createdAt' | 'lastUpdated'>) => void; // Callback when widget is added
 }
 
+/**
+ * Modal component for adding new widgets
+ * @param props - AddWidgetModalProps
+ */
 export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModalProps) {
   const [widgetName, setWidgetName] = useState('');
   const [widgetDescription, setWidgetDescription] = useState('');
@@ -29,6 +49,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
   const [fields, setFields] = useState<FieldMapping[]>([]);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [detectedCurrency, setDetectedCurrency] = useState<{ code: string; symbol: string; path: string } | null>(null);
 
 
   useEffect(() => {
@@ -48,6 +69,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       setFields([]);
       setTestResult(null);
       setShowArraysOnly(false);
+      setDetectedCurrency(null);
     }
   }, [isOpen]);
 
@@ -89,11 +111,22 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       if (response.error) {
         setTestResult({ success: false, message: response.error });
         setFields([]);
+        setDetectedCurrency(null);
       } else {
         const extractedFields = extractFieldsFromJson(response.data, '', showArraysOnly);
+        
+        // Detect currency from API response
+        const currency = detectCurrency(response.data);
+        setDetectedCurrency(currency);
+        
+        let message = `API connection successful! ${extractedFields.length} top-level fields found.`;
+        if (currency) {
+          message += ` Currency detected: ${currency.code} (${currency.symbol})`;
+        }
+        
         setTestResult({
           success: true,
-          message: `API connection successful! ${extractedFields.length} top-level fields found.`,
+          message,
         });
         setFields(extractedFields);
       }
@@ -148,6 +181,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
       chartType: displayMode === 'chart' ? chartType : undefined,
       timeInterval: displayMode === 'chart' ? timeInterval : undefined,
       selectedFields,
+      detectedCurrency: detectedCurrency || undefined,
     });
 
     onClose();
@@ -369,6 +403,7 @@ export default function AddWidgetModal({ isOpen, onClose, onAdd }: AddWidgetModa
               onDisplayModeChange={setDisplayMode}
               showArraysOnly={showArraysOnly}
               onShowArraysOnlyChange={setShowArraysOnly}
+              detectedCurrency={detectedCurrency}
             />
           )}
         </div>

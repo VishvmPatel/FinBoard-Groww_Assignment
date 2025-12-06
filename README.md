@@ -119,23 +119,6 @@ Two methods supported:
 
 If an API blocks browser requests, FINBOARD automatically uses a Next.js proxy route to fetch data server-side.
 
-## Deployment
-
-### Vercel (Recommended)
-
-1. Push your code to GitHub
-2. Import project in Vercel
-3. Deploy (automatic builds on push)
-
-### Other Platforms
-
-```bash
-npm run build
-npm start
-```
-
-The app will run on port 3000 by default.
-
 ## Configuration
 
 ### Environment Variables

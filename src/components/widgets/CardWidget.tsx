@@ -1,13 +1,29 @@
+/**
+ * Card Widget Component
+ * 
+ * Displays widget data in a card format with key-value pairs.
+ * Each selected field is shown as a card with the field name and formatted value.
+ * Supports various data types and formatting options.
+ */
+
 'use client';
 
 import { WidgetConfig, WidgetField } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { formatFieldValue } from '@/utils/formatting';
 
+/**
+ * Props for CardWidget component
+ */
 interface CardWidgetProps {
-  widget: WidgetConfig;
+  widget: WidgetConfig; // Widget configuration
 }
 
+/**
+ * Card widget component that displays data as key-value pairs
+ * @param widget - Widget configuration containing fields to display
+ * @returns Card widget JSX with field values
+ */
 export default function CardWidget({ widget }: CardWidgetProps) {
   const { data, loading, error, getFieldValue } = useWidgetData(widget);
 
@@ -70,6 +86,12 @@ export default function CardWidget({ widget }: CardWidgetProps) {
     );
   }
 
+  /**
+   * Fallback formatter for values without explicit format configuration
+   * Handles objects, arrays, and primitive values intelligently
+   * @param value - Raw value to format
+   * @returns Formatted string representation
+   */
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) {
       return 'N/A';
@@ -112,7 +134,7 @@ export default function CardWidget({ widget }: CardWidgetProps) {
         const displayName = field.displayName || field.path.split('.').pop() || field.path;
         // Use custom formatting if available, otherwise use fallback formatting
         const formattedValue = field.format 
-          ? formatFieldValue(value, field)
+          ? formatFieldValue(value, field, widget.detectedCurrency?.symbol)
           : formatValue(value);
 
         return (

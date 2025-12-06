@@ -1,10 +1,22 @@
+/**
+ * Persistence Utilities
+ * 
+ * Functions for saving and loading widget configurations and layouts
+ * to/from localStorage. Handles export/import of complete dashboard
+ * configurations with validation and backward compatibility.
+ */
+
 import { WidgetConfig, DashboardExport } from '@/types';
 
-const STORAGE_KEY = 'finboard-widgets';
-const LAYOUT_KEY = 'finboard-layout';
-const RESPONSIVE_LAYOUT_KEY = 'finboard-responsive-layouts';
+// LocalStorage keys for different data types
+const STORAGE_KEY = 'finboard-widgets'; // Widget configurations
+const LAYOUT_KEY = 'finboard-layout'; // Legacy single layout (for backward compatibility)
+const RESPONSIVE_LAYOUT_KEY = 'finboard-responsive-layouts'; // Responsive layouts for all breakpoints
 
-// Type for per-breakpoint layouts
+/**
+ * Type for responsive layouts across different screen breakpoints
+ * Each breakpoint contains a map of widget IDs to their layout positions
+ */
 export type BreakpointLayouts = {
   lg?: Record<string, { x: number; y: number; w: number; h: number }>;
   md?: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -13,6 +25,10 @@ export type BreakpointLayouts = {
   xxs?: Record<string, { x: number; y: number; w: number; h: number }>;
 };
 
+/**
+ * Saves widget configurations to localStorage
+ * @param widgets - Array of widget configurations to save
+ */
 export function saveWidgetsToStorage(widgets: WidgetConfig[]): void {
   try {
     // Always save, even if empty array (to clear storage when all widgets removed)
@@ -28,6 +44,10 @@ export function saveWidgetsToStorage(widgets: WidgetConfig[]): void {
   }
 }
 
+/**
+ * Loads widget configurations from localStorage
+ * @returns Array of widget configurations or empty array if none found
+ */
 export function loadWidgetsFromStorage(): WidgetConfig[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -40,7 +60,11 @@ export function loadWidgetsFromStorage(): WidgetConfig[] {
   return [];
 }
 
-// Legacy function - kept for backward compatibility
+/**
+ * Legacy function - saves single layout to storage (for backward compatibility)
+ * New code should use saveResponsiveLayoutsToStorage instead
+ * @param layout - Single layout object keyed by widget ID
+ */
 export function saveLayoutToStorage(layout: Record<string, { x: number; y: number; w: number; h: number }>): void {
   try {
     localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
@@ -49,7 +73,11 @@ export function saveLayoutToStorage(layout: Record<string, { x: number; y: numbe
   }
 }
 
-// Legacy function - kept for backward compatibility
+/**
+ * Legacy function - loads single layout from storage (for backward compatibility)
+ * New code should use loadResponsiveLayoutsFromStorage instead
+ * @returns Single layout object keyed by widget ID
+ */
 export function loadLayoutFromStorage(): Record<string, { x: number; y: number; w: number; h: number }> {
   try {
     const stored = localStorage.getItem(LAYOUT_KEY);
@@ -182,7 +210,13 @@ export function convertStorageFormatToLayouts(
 }
 
 /**
- * Calculate default layout for a widget based on breakpoint and widget type
+ * Calculates default layout position and size for a widget
+ * Takes into account widget type (card/table/chart) and screen breakpoint
+ * @param widgetId - ID of the widget
+ * @param allWidgetIds - Array of all widget IDs (for position calculation)
+ * @param breakpoint - Screen breakpoint (lg, md, sm, xs, xxs)
+ * @param widget - Optional widget config for type-based sizing
+ * @returns Default layout object with position and size
  */
 function calculateDefaultLayout(
   widgetId: string,
@@ -254,7 +288,10 @@ function calculateDefaultLayout(
 
 
 /**
- * Export complete dashboard configuration including widgets and responsive layouts
+ * Exports complete dashboard configuration to JSON string
+ * Includes widgets, responsive layouts, and metadata
+ * @param widgets - Array of widget configurations to export
+ * @returns JSON string of complete dashboard configuration
  */
 export function exportDashboardConfig(widgets: WidgetConfig[]): string {
   // Load responsive layouts from storage
@@ -281,6 +318,10 @@ export function exportDashboardConfig(widgets: WidgetConfig[]): string {
 
 /**
  * Validation result for imported dashboard configuration
+ */
+/**
+ * Result of dashboard import validation
+ * Contains validation status, imported data, and any errors/warnings
  */
 export interface ImportValidationResult {
   valid: boolean;

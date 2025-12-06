@@ -1,18 +1,39 @@
+/**
+ * Edit Widget Modal Component
+ * 
+ * Modal dialog for editing existing widgets. Pre-populates form with
+ * current widget configuration and allows users to modify:
+ * - Widget name and description
+ * - API URL and authentication
+ * - Field selections and formatting
+ * - Display mode and chart settings
+ * - Refresh intervals and cache settings
+ * - Auto-detects currency from API response
+ */
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { X, TestTube } from 'lucide-react';
 import { WidgetConfig, WidgetField, DisplayMode, FieldMapping, ChartType, TimeInterval } from '@/types';
 import { fetchApiData, extractFieldsFromJson } from '@/utils/api';
+import { detectCurrency } from '@/utils/currencyDetection';
 import JSONFieldSelector from './JSONFieldSelector';
 
+/**
+ * Props for EditWidgetModal component
+ */
 interface EditWidgetModalProps {
-  isOpen: boolean;
-  widget: WidgetConfig | null;
-  onClose: () => void;
-  onSave: (id: string, widget: Partial<WidgetConfig>) => void;
+  isOpen: boolean; // Whether modal is visible
+  widget: WidgetConfig | null; // Widget to edit (null when closed)
+  onClose: () => void; // Callback to close modal
+  onSave: (id: string, widget: Partial<WidgetConfig>) => void; // Callback when widget is saved
 }
 
+/**
+ * Modal component for editing existing widgets
+ * @param props - EditWidgetModalProps
+ */
 export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: EditWidgetModalProps) {
   const [widgetName, setWidgetName] = useState('');
   const [widgetDescription, setWidgetDescription] = useState('');
@@ -29,6 +50,7 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
   const [fields, setFields] = useState<FieldMapping[]>([]);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [detectedCurrency, setDetectedCurrency] = useState<{ code: string; symbol: string; path: string } | null>(null);
 
   // Initialize form with widget data
   useEffect(() => {
@@ -46,6 +68,7 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
       setFields([]);
       setTestResult(null);
       setShowArraysOnly(false);
+      setDetectedCurrency(widget.detectedCurrency || null);
     }
   }, [widget, isOpen]);
 
@@ -95,11 +118,22 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
       if (response.error) {
         setTestResult({ success: false, message: response.error });
         setFields([]);
+        setDetectedCurrency(null);
       } else {
         const extractedFields = extractFieldsFromJson(response.data, '', showArraysOnly);
+        
+        // Detect currency from API response
+        const currency = detectCurrency(response.data);
+        setDetectedCurrency(currency);
+        
+        let message = `API connection successful! ${extractedFields.length} top-level fields found.`;
+        if (currency) {
+          message += ` Currency detected: ${currency.code} (${currency.symbol})`;
+        }
+        
         setTestResult({
           success: true,
-          message: `API connection successful! ${extractedFields.length} top-level fields found.`,
+          message,
         });
         setFields(extractedFields);
       }
@@ -129,8 +163,9 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
 
     const keyToUse = apiKey.trim() || extractApiKeyFromUrl(apiUrl);
     const headerToUse = apiKeyHeader.trim() || 'x-api-key';
-
+    
     onSave(widget.id, {
+      detectedCurrency: detectedCurrency || undefined,
       name: widgetName,
       description: widgetDescription.trim() || undefined,
       apiUrl,
@@ -338,6 +373,7 @@ export default function EditWidgetModal({ isOpen, widget, onClose, onSave }: Edi
               onDisplayModeChange={setDisplayMode}
               showArraysOnly={showArraysOnly}
               onShowArraysOnlyChange={setShowArraysOnly}
+              detectedCurrency={detectedCurrency}
             />
           )}
         </div>

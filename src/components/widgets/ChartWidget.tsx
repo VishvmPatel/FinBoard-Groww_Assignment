@@ -1,3 +1,11 @@
+/**
+ * Line Chart Widget Component
+ * 
+ * Displays widget data as a line chart using Recharts.
+ * Automatically extracts time-series data from API responses and plots
+ * multiple fields as separate lines on the chart.
+ */
+
 'use client';
 
 import { useMemo } from 'react';
@@ -6,10 +14,18 @@ import { WidgetConfig, WidgetField } from '@/types';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { getNestedValue } from '@/utils/api';
 
+/**
+ * Props for ChartWidget component
+ */
 interface ChartWidgetProps {
-  widget: WidgetConfig;
+  widget: WidgetConfig; // Widget configuration
 }
 
+/**
+ * Line chart widget component
+ * @param widget - Widget configuration containing fields to plot
+ * @returns Line chart JSX with time-series data visualization
+ */
 export default function ChartWidget({ widget }: ChartWidgetProps) {
   const { data, loading, error, getFieldValue } = useWidgetData(widget);
   

@@ -1,3 +1,11 @@
+/**
+ * Widget Renderer Component
+ * 
+ * Router component that renders the appropriate widget type based on
+ * the widget's displayMode and chartType configuration.
+ * Acts as a factory for different widget display types.
+ */
+
 'use client';
 
 import { WidgetConfig } from '@/types';
@@ -6,10 +14,18 @@ import TableWidget from './TableWidget';
 import ChartWidget from './ChartWidget';
 import CandlestickChartWidget from './CandlestickChartWidget';
 
+/**
+ * Props for WidgetRenderer component
+ */
 interface WidgetRendererProps {
-  widget: WidgetConfig;
+  widget: WidgetConfig; // Widget configuration determining which component to render
 }
 
+/**
+ * Renders the appropriate widget component based on display mode
+ * @param widget - Widget configuration
+ * @returns The appropriate widget component (Card, Table, Chart, or Candlestick)
+ */
 export default function WidgetRenderer({ widget }: WidgetRendererProps) {
   switch (widget.displayMode) {
     case 'card':

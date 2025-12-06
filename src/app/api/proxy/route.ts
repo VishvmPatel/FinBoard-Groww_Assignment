@@ -1,5 +1,19 @@
+/**
+ * API Proxy Route
+ * 
+ * Next.js API route that acts as a server-side proxy for API requests.
+ * Used to bypass CORS restrictions by making server-to-server requests.
+ * Supports header-based API key authentication.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 
+/**
+ * GET handler for proxy requests
+ * Fetches data from target API and returns it to the client
+ * @param request - Next.js request object with query parameters
+ * @returns JSON response with data or error
+ */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const targetUrl = searchParams.get('url');
