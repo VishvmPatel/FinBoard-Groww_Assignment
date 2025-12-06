@@ -199,6 +199,7 @@ export default function JSONFieldSelector({
                     onFieldsChange(newFields);
                   }}
                   onRemove={() => removeField(field.path)}
+                  detectedCurrency={detectedCurrency}
                 />
               ))
             )}
@@ -214,10 +215,12 @@ function FieldConfigItem({
   field,
   onUpdate,
   onRemove,
+  detectedCurrency,
 }: {
   field: WidgetField;
   onUpdate: (field: WidgetField) => void;
   onRemove: () => void;
+  detectedCurrency?: { code: string; symbol: string; path: string } | null;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
